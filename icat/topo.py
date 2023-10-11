@@ -1,6 +1,8 @@
+
 import numpy as np
 import networkx as nx
 import math
+from math import pi
 import json
 from bezier import *
 
@@ -13,9 +15,13 @@ from bezier import *
 WAYPOINT_DISTANCE = 0.5
 BEZIER_CONTROL_PARAMETER = 0.6
 
-def build_graph():
-    node_list = get_node_list()
-    edge_list = get_edge_list(node_list)
+# def build_graph(filename = "edges.json", is_loading= False):
+#     node_list = get_node_list()
+#     if is_loading:
+#         edge_list = load_edges(filename)
+#     else:
+#         edge_list = get_edge_list(node_list)
+def build_graph(node_list, edge_list):
     G = nx.DiGraph()
     G.add_nodes_from(node_list)
     G.add_edges_from(edge_list)
@@ -30,67 +36,70 @@ def A_star_path(G,ns,ng): # node_start, node_goal
 def get_node_list():
 
     node_list= [
-        (1,  {"coord":(11.0,3.25), "pre":[(10,'l')], "next":[(2,'s')],"itsc": False}),
-        (2,  {"coord":(21,3.25), "pre":[(1,'s')], "next":[(3,'s'),(19,'l')], "itsc": False}),
-        (3,  {"coord":(38,3.25), "pre":[(2,'s'),(15,'l')], "next":[(4,'s')], "itsc": False}),
-        (4,  {"coord":(49.0,3.25), "pre":[(3,'s')], "next":[(5,'l')], "itsc": False}),
-        (5,  {"coord":(56.5,10.3), "pre":[(4,'l')], "next":[(6,'s')], "itsc": False}),
-        (6,  {"coord":(56.5, 39.6), "pre":[(5,'s')], "next":[(7,'l')], "itsc": False}),
-        (7,  {"coord":(49.0,47.2), "pre":[(6,'l')], "next":[(8,'s')], "itsc": False}),
-        (8,  {"coord":(11.5,47.2), "pre":[(7,'s')], "next":[(9,'l')], "itsc": False}),
-        (9,  {"coord":(3.9,39.6), "pre":[(8,'l')], "next":[(10,'s')], "itsc": False}),
-        (10,  {"coord":(3.9,10.3), "pre":[(9,'s')], "next":[(1,'l')], "itsc": False}),
+        (1,  {"coord":(11.0,3.25,0.), "pre":[(10,'l')], "next":[(2,'s')],"itsc": False}),
+        (2,  {"coord":(21,3.25,0.), "pre":[(1,'s')], "next":[(3,'s'),(19,'l')], "itsc": False}),
+        (3,  {"coord":(38,3.25,0.), "pre":[(2,'s'),(15,'l')], "next":[(4,'s')], "itsc": False}),
+        (4,  {"coord":(49.0,3.25,0.), "pre":[(3,'s')], "next":[(5,'l')], "itsc": False}),
+        (5,  {"coord":(56.5,10.3, pi/2), "pre":[(4,'l')], "next":[(6,'s')], "itsc": False}),
+        (6,  {"coord":(56.5, 39.6,pi/2), "pre":[(5,'s')], "next":[(7,'l')], "itsc": False}),
+        (7,  {"coord":(49.0,47.2, pi), "pre":[(6,'l')], "next":[(8,'s')], "itsc": False}),
+        (8,  {"coord":(11.5,47.2, pi), "pre":[(7,'s')], "next":[(9,'l')], "itsc": False}),
+        (9,  {"coord":(3.9,39.6, -pi/2), "pre":[(8,'l')], "next":[(10,'s')], "itsc": False}),
+        (10,  {"coord":(3.9,10.3,-pi/2), "pre":[(9,'s')], "next":[(1,'l')], "itsc": False}),
 
-        (11,  {"coord":(7.93,10.3), "pre":[(27,'r')], "next":[(12,'s')], "itsc": False}),
-        (12,  {"coord":(7.93,16.8), "pre":[(11,'s')], "next":[(13,'s'),(31,'r')], "itsc": False}),
-        (13,  {"coord":(7.93,33.6), "pre":[(12,'s'),(35,'r')], "next":[(14,'s')], "itsc": False}),
-        (14,  {"coord":(7.93,39.6), "pre":[(13,'s')], "next":[(39,'r')], "itsc": False}),
+        (11,  {"coord":(7.93,10.3,pi/2), "pre":[(27,'r')], "next":[(12,'s')], "itsc": False}),
+        (12,  {"coord":(7.93,16.8,pi/2), "pre":[(11,'s')], "next":[(13,'s'),(31,'r')], "itsc": False}),
+        (13,  {"coord":(7.93,33.6,pi/2), "pre":[(12,'s'),(35,'r')], "next":[(14,'s')], "itsc": False}),
+        (14,  {"coord":(7.93,39.6,pi/2), "pre":[(13,'s')], "next":[(39,'r')], "itsc": False}),
 
-        (15,  {"coord":(28,13), "pre":[(16,'s')], "next":[(28,'r'),(3,'l')], "itsc": False}),
-        (16,  {"coord":(28,17), "pre":[(17,'s'),(32,'r'),(37,'l')], "next":[(15,'s')], "itsc": True}),
-        (17,  {"coord":(28,33.6), "pre":[(18,'s')], "next":[(16,'s'),(36,'r'),(33,'l')], "itsc": True}),
-        (18,  {"coord":(28,38.1), "pre":[(40,'r')], "next":[(17,'s')], "itsc": False}),
+        (15,  {"coord":(28,13,-pi/2), "pre":[(16,'s')], "next":[(28,'r'),(3,'l')], "itsc": False}),
+        (16,  {"coord":(28,17,-pi/2), "pre":[(17,'s'),(32,'r'),(37,'l')], "next":[(15,'s')], "itsc": True}),
+        (17,  {"coord":(28,33.6,-pi/2), "pre":[(18,'s')], "next":[(16,'s'),(36,'r'),(33,'l')], "itsc": True}),
+        (18,  {"coord":(28,38.1,-pi/2), "pre":[(40,'r')], "next":[(17,'s')], "itsc": False}),
 
-        (19,  {"coord":(32,13), "pre":[(29,'r'),(2,'l')], "next":[(20,'s')], "itsc": False}),
-        (20,  {"coord":(32,17), "pre":[(19,'s')], "next":[(21,'s'),(33,'r'),(36,'l')], "itsc": True}),
-        (21,  {"coord":(32,33.6), "pre":[(20,'s'),(37,'r'),(32,'l')], "next":[(22,'s')], "itsc": True}),
-        (22,  {"coord":(32,38.1), "pre":[(21,'s')], "next":[(41,'r')], "itsc": False}),
+        (19,  {"coord":(32,13,pi/2), "pre":[(29,'r'),(2,'l')], "next":[(20,'s')], "itsc": False}),
+        (20,  {"coord":(32,17,pi/2), "pre":[(19,'s')], "next":[(21,'s'),(33,'r'),(36,'l')], "itsc": True}),
+        (21,  {"coord":(32,33.6,pi/2), "pre":[(20,'s'),(37,'r'),(32,'l')], "next":[(22,'s')], "itsc": True}),
+        (22,  {"coord":(32,38.1,pi/2), "pre":[(21,'s')], "next":[(41,'r')], "itsc": False}),
 
-        (23,  {"coord":(52.4,10.3), "pre":[(24,'s')], "next":[(30,'r')], "itsc": False}),
-        (24,  {"coord":(52.4,16.8), "pre":[(25,'s'),(34,'r')], "next":[(23,'s')], "itsc": False}),
-        (25,  {"coord":(52.4,33.6), "pre":[(26,'s')], "next":[(24,'s'),(38,'r')], "itsc": False}),
-        (26,  {"coord":(52.4,39.6), "pre":[(42,'r')], "next":[(25,'s')], "itsc": False}),
+        (23,  {"coord":(52.4,10.3,-pi/2), "pre":[(24,'s')], "next":[(30,'r')], "itsc": False}),
+        (24,  {"coord":(52.4,16.8,-pi/2), "pre":[(25,'s'),(34,'r')], "next":[(23,'s')], "itsc": False}),
+        (25,  {"coord":(52.4,33.6,-pi/2), "pre":[(26,'s')], "next":[(24,'s'),(38,'r')], "itsc": False}),
+        (26,  {"coord":(52.4,39.6,-pi/2), "pre":[(42,'r')], "next":[(25,'s')], "itsc": False}),
 
-        (27,  {"coord":(11.0,7.25), "pre":[(28,'s')], "next":[(11,'r')], "itsc": False}),
-        (28,  {"coord":(21,7.25), "pre":[(29,'s'),(15,'r')], "next":[(27,'s')], "itsc": False}),
-        (29,  {"coord":(38,7.25), "pre":[(30,'s')], "next":[(28,'s'),(19,'r')], "itsc": False}),
-        (30,  {"coord":(49.0,7.25), "pre":[(23,'r')], "next":[(29,'s')], "itsc": False}),
+        (27,  {"coord":(11.0,7.25, pi), "pre":[(28,'s')], "next":[(11,'r')], "itsc": False}),
+        (28,  {"coord":(21,7.25, pi), "pre":[(29,'s'),(15,'r')], "next":[(27,'s')], "itsc": False}),
+        (29,  {"coord":(38,7.25, pi), "pre":[(30,'s')], "next":[(28,'s'),(19,'r')], "itsc": False}),
+        (30,  {"coord":(49.0,7.25, pi), "pre":[(23,'r')], "next":[(29,'s')], "itsc": False}),
 
-        (31,  {"coord":(13.42,23.5), "pre":[(12,'r')], "next":[(32,'s')], "itsc": False}),
-        (32,  {"coord":(21,23.5), "pre":[(31,'s')], "next":[(33,'s'),(16,'r'),(21,'l')], "itsc": True}),
-        (33,  {"coord":(38.8,23.5), "pre":[(32,'s'),(20,'r'),(17,'l')], "next":[(34,'s')], "itsc": True}),
-        (34,  {"coord":(46,23.5), "pre":[(33,'s')], "next":[(24,'r')], "itsc": False}),
+        (31,  {"coord":(13.42,23.5,0.), "pre":[(12,'r')], "next":[(32,'s')], "itsc": False}),
+        (32,  {"coord":(21,23.5,0.), "pre":[(31,'s')], "next":[(33,'s'),(16,'r'),(21,'l')], "itsc": True}),
+        (33,  {"coord":(38.8,23.5,0.), "pre":[(32,'s'),(20,'r'),(17,'l')], "next":[(34,'s')], "itsc": True}),
+        (34,  {"coord":(46,23.5,0.), "pre":[(33,'s')], "next":[(24,'r')], "itsc": False}),
 
-        (35,  {"coord":(13.42,27.2), "pre":[(36,'s')], "next":[(13,'r')], "itsc": False}),
-        (36,  {"coord":(21,27.2), "pre":[(37,'s'),(17,'r'),(20,'l')], "next":[(35,'s')], "itsc": True}),
-        (37,  {"coord":(38.8,27.2), "pre":[(38,'s')], "next":[(36,'s'),(21,'r'),(16,'l')], "itsc": True}),
-        (38,  {"coord":(46,27.2), "pre":[(25,'r')], "next":[(37,'s')], "itsc": False}),
+        (35,  {"coord":(13.42,27.2, pi), "pre":[(36,'s')], "next":[(13,'r')], "itsc": False}),
+        (36,  {"coord":(21,27.2, pi), "pre":[(37,'s'),(17,'r'),(20,'l')], "next":[(35,'s')], "itsc": True}),
+        (37,  {"coord":(38.8,27.2, pi), "pre":[(38,'s')], "next":[(36,'s'),(21,'r'),(16,'l')], "itsc": True}),
+        (38,  {"coord":(46,27.2, pi), "pre":[(25,'r')], "next":[(37,'s')], "itsc": False}),
 
-        (39,  {"coord":(11.5,43.25), "pre":[(14,'r')], "next":[(40,'s')], "itsc": False}),
-        (40,  {"coord":(21,43.25), "pre":[(39,'s')], "next":[(18,'r'),(41,'s')], "itsc": False}),
-        (41,  {"coord":(37.6,43.25), "pre":[(22,'r'),(40,'s')], "next":[(42,'s')], "itsc": False}),
-        (42,  {"coord":(49.0,43.25), "pre":[(41,'s')], "next":[(26,'r')], "itsc": False}),
+        (39,  {"coord":(11.5,43.25,0.), "pre":[(14,'r')], "next":[(40,'s')], "itsc": False}),
+        (40,  {"coord":(21,43.25,0.), "pre":[(39,'s')], "next":[(18,'r'),(41,'s')], "itsc": False}),
+        (41,  {"coord":(37.6,43.25,0.), "pre":[(22,'r'),(40,'s')], "next":[(42,'s')], "itsc": False}),
+        (42,  {"coord":(49.0,43.25,0.), "pre":[(41,'s')], "next":[(26,'r')], "itsc": False}),
     ]
     return node_list
+
+
+
 
 def get_edge_list(node_list):
     edge_list = []
     for node_id, att in node_list:
         print(' ')
         print(" **** Iteration Id is: ",node_id, " attr: ",att)
-        coord = att["coord"]
+        coord = att["coord"][:2]
         for next_node, behavior in att['next']:
-            next_coord = node_list[next_node-1][1]["coord"]
+            next_coord = node_list[next_node-1][1]["coord"][:2]
             print(" ------->"," next node: " ,next_node, " behavior: ", behavior, "next  coord: ",next_coord)
             edge = build_edge(node_id, next_node, coord, next_coord, behavior)
             edge_list.append(edge)
