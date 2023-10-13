@@ -95,12 +95,12 @@ def get_node_list():
 def get_edge_list(node_list):
     edge_list = []
     for node_id, att in node_list:
-        print(' ')
-        print(" **** Iteration Id is: ",node_id, " attr: ",att)
+        # print(' ')
+        # print(" **** Iteration Id is: ",node_id, " attr: ",att)
         coord = att["coord"][:2]
         for next_node, behavior in att['next']:
             next_coord = node_list[next_node-1][1]["coord"][:2]
-            print(" ------->"," next node: " ,next_node, " behavior: ", behavior, "next  coord: ",next_coord)
+            # print(" ------->"," next node: " ,next_node, " behavior: ", behavior, "next  coord: ",next_coord)
             edge = build_edge(node_id, next_node, coord, next_coord, behavior)
             edge_list.append(edge)
     return edge_list
@@ -120,11 +120,11 @@ def build_edge(u,v,u_coord,v_coord, behavior):
 
 def get_straight_waypoints(u_coord, v_coord, distance=WAYPOINT_DISTANCE):
     # Calculate the distance between u and v
-    print("u: ",u_coord, "  v: ", v_coord)
+    # print("u: ",u_coord, "  v: ", v_coord)
     ux, uy = u_coord; vx,vy = v_coord
     dx = vx - ux
     dy = vy - uy
-    print("dx: ", dx, "  dy: ", dy)
+    # print("dx: ", dx, "  dy: ", dy)
     d = math.sqrt(dx**2 + dy**2)
 
     # Calculate the normalized directional vectors
@@ -141,6 +141,8 @@ def get_straight_waypoints(u_coord, v_coord, distance=WAYPOINT_DISTANCE):
     
     # Ensure the last waypoint is v for precision issues
     # waypoints[-1] = v_coord
+    if dist(waypoints[-1], v_coord) < distance/2:
+        waypoints.pop()
     waypoints = [(round(x,3),round(y,3), yaw) for x,y in waypoints]
     
     return waypoints, d
@@ -178,7 +180,9 @@ def get_curve_waypoints(u, v, b, distance):
         waypoints_with_yaw.append((round(waypoints[i][0], 3), round(waypoints[i][1], 3), yaw))
     
     # For the last waypoint, use the yaw of the previous point
-    waypoints_with_yaw.append((round(waypoints[-1][0], 3), round(waypoints[-1][1], 3), yaw))
+    if dist(waypoints[-1],v) >=0.25:
+        yaw_last = calculate_yaw(waypoints[-1],v)
+        waypoints_with_yaw.append((round(waypoints[-1][0], 3), round(waypoints[-1][1], 3), yaw_last))
 
     d = compute_curve_length(curve_points)
     
@@ -244,7 +248,47 @@ def load_edges(filename):
     
     return edge_list
 
+def dist(u,v):
+    d = None
+    if len(u)==len(v):
+        if len(u) == 3:
+            ux,uy,_ = u
+            vx,vy,_ =v
+        elif len(u) == 2:
+            ux,uy = u
+            vx,vy = v
+        else:
+            raise ValueError ("Length of tuple wrong!")
+        dx = vx - ux
+        dy = vy - uy
+        # print("dx: ", dx, "  dy: ", dy)
+        d = math.sqrt(dx**2 + dy**2)
+    else:
+        raise ValueError ("Two point length not equal!")
+    return d
 
+def get_lane_lines(waypoints, road_width=4):
+    half_width = road_width / 2.0
+    left_lane_points = []
+    right_lane_points = []
+
+    for (x, y, yaw) in waypoints:
+        # Compute offset for left lane line
+        delta_x_left = half_width * math.cos(yaw + math.pi/2)
+        delta_y_left = half_width * math.sin(yaw + math.pi/2)
+        x_left = x + delta_x_left
+        y_left = y + delta_y_left
+        
+        # Compute offset for right lane line
+        delta_x_right = half_width * math.cos(yaw - math.pi/2)
+        delta_y_right = half_width * math.sin(yaw - math.pi/2)
+        x_right = x - delta_x_right
+        y_right = y - delta_y_right
+        
+        left_lane_points.append((x_left, y_left))
+        right_lane_points.append((x_right, y_right))
+
+    return left_lane_points, right_lane_points
 # # node_list = get_node_list()
 # # print(node_list)
 

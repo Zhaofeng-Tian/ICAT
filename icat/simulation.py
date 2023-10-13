@@ -3,10 +3,17 @@ from nav_gym.obj.robot.robot import CarRobot
 from topo import *
 import random
 from simulation import TrafficManager
-
+"""
+ICAT car parameter:
+Wheelbase = 23.5 cm
+Frontsus  =  8.0 cm
+Rearsus   =  4.0 cm
+Halfwidth = 10.0 cm
+"""
 N_CAR = 5
 N_NODE = 42
 CAR_PARAM = get_car_param()
+CAR_INFO = {"hl":1.775, "hw": 1.0} # half length, half width of the car
 DT = 0.1
 
 def init_sim():
@@ -33,10 +40,7 @@ def init_sim():
         path = nx.astar_path(G, start_nodes[i], goal_nodes[i], heuristic=None, weight="weight")
         path_buffer.append(path)
     TM = TrafficManager(node_list=node_list, edge_list=edge_list, G = G, n_car = N_CAR,
-                        car_states=car_states, start_nodes=start_nodes, goal_nodes=goal_nodes)
+                        car_states=car_states, car_info = CAR_INFO, start_nodes=start_nodes, goal_nodes=goal_nodes)
     return cars, TM 
-
-def step(cars, TM):
-
 
 

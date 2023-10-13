@@ -16,7 +16,7 @@ def view_topo(if_arrow = False):
     img = load_img('icat.png')
 
     for node_id, data in node_list:
-        x, y = data["coord"]
+        x, y, yaw = data["coord"]
         
         # Differentiate color based on "itsc" property
         color = 'green' if data["itsc"] else 'blue'
@@ -83,8 +83,10 @@ def test_load_edges():
         
     
 # test_graph()
-view_topo()
+view_topo(if_arrow=True)
 # test_save_edges()
 # test_load_edges()
+
+
 
 

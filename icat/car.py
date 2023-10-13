@@ -1,6 +1,6 @@
 import numpy as np
 from math import sqrt, sin, cos, pi,ceil
-
+from nav_gym.obj.robot.robot import CarRobot
 class CarParam:
     """
     ICAT car parameter:
@@ -135,3 +135,13 @@ class CarParam:
             centers.append(np.array([rear_center[0]+dx*(i+1),0.]))
         centers.append(front_center)
         return np.array(centers)
+    
+
+def build_car(i, CAR_PARAM, coord):
+    x,y,yaw = coord
+    car = CarRobot(id=i, param= CAR_PARAM, initial_state=np.array([x,y,yaw,0.,0.]))
+    return car
+
+def get_car_param():
+    param = CarParam()
+    return param

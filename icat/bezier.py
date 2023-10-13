@@ -34,19 +34,6 @@ def sample_waypoints(curve_points, distance):
         
     return waypoints
 
-# def get_curve_waypoints(u,v,b,distance):
-#     ux, uy = u; vx,vy = v
-#     dx = vx-ux; dy = vy-uy
-#     points = calculate_control_points(u,v,dx, dy, b) # two control points between u,v
-#     # if dx > 0 && dy > 0:
-#     t_values = np.linspace(0, 1, 1000)
-#     curve_points = [bezier_curve(*points, t) for t in t_values]
-#     d = compute_curve_length(curve_points)
-#     waypoints = sample_waypoints(curve_points, distance)
-#     waypoints = [(round(x,3),round(y,3)) for x,y in waypoints]
-#     return waypoints, d
-
-
 # points = [(48,3.25), (54,3.25), (56.5, 7), (56.5, 10.8)]
 # t_values = np.linspace(0, 1, 1000)
 # curve_points = [bezier_curve(*points, t) for t in t_values]
