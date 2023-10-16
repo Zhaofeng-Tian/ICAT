@@ -1,10 +1,13 @@
-
+import random
 import numpy as np
 import networkx as nx
 import math
 from math import pi
 import json
 from bezier import *
+from matplotlib.patches import Circle, Arrow
+from nav_gym.map.util import load_img
+
 
 # G = nx.DiGraph()
 # G.add_nodes_from([(1,{"coord":(5,2), "itsc":True}), (2,{"coord":(6,3), "itsc":True})])
@@ -102,6 +105,8 @@ def get_edge_list(node_list):
             next_coord = node_list[next_node-1][1]["coord"][:2]
             # print(" ------->"," next node: " ,next_node, " behavior: ", behavior, "next  coord: ",next_coord)
             edge = build_edge(node_id, next_node, coord, next_coord, behavior)
+            n_points = len(edge[2]["waypoints"])
+            edge[2]["n_points"] = n_points
             edge_list.append(edge)
     return edge_list
 
@@ -289,6 +294,123 @@ def get_lane_lines(waypoints, road_width=4):
         right_lane_points.append((x_right, y_right))
 
     return left_lane_points, right_lane_points
+
+def view_topo(node_list, edge_list,if_arrow = False):
+    # node_list = get_node_list()
+    # edge_list = get_edge_list(node_list=node_list)
+    # for edge in edge_list:
+    #     print("----------------------")
+    #     print("----> ", edge)
+    node_list = node_list
+    edge_list = edge_list
+
+    fig,ax = plt.subplots()
+    img = load_img('icat.png')
+
+    for node_id, data in node_list:
+        x, y, yaw = data["coord"]
+        
+        # Differentiate color based on "itsc" property
+        color = 'green' if data["itsc"] else 'blue'
+        
+        # Draw the disk patch (circle)
+        circle = Circle((x, y), radius=1, color=color, ec="black")  # ec stands for edgecolor
+        ax.add_patch(circle)
+        
+        # Add node ID inside the circle
+        ax.text(x, y, str(node_id), ha='center', va='center', color='white')
+
+    for edge in edge_list:
+        points = edge[2]["waypoints"]
+        #points = [(10, 10), (30, 40), (55, 5), (5, 45)]
+
+        # Unzip the points to separate x and y coordinates for easy plotting
+        x_coords, y_coords, yaw = zip(*points)
+
+        # Plotting the points
+        plt.scatter(x_coords, y_coords, color='red')  # You can change the color and other properties as needed.
+        # Drawing lines connecting the points
+        plt.plot(x_coords, y_coords, color='red')  # You can change the color and other properties as needed.
+
+    if if_arrow:
+        for edge in edge_list:
+            points = edge[2]["waypoints"]
+            for x, y, yaw in points:
+                arrow_length = 0.5  # Adjust as needed
+                # plt.scatter(x, y, color='red')
+                dx = arrow_length * np.cos(yaw)
+                dy = arrow_length * np.sin(yaw)
+                
+                arrow = Arrow(x, y, dx, dy, width=0.2, color='red')  # Adjust width and color as needed
+                ax.add_patch(arrow)
+
+    # Plotting the image
+    # plt.imshow(img, origin='lower', extent=[0, 60, 0, 50])  # The extent parameter sets the axis limits and 'origin' is now set to 'lower'.
+    plt.imshow(img, extent=[0, 60, 0, 50]) 
+    # Setting the x and y limits for the axes
+    plt.xlim(0, 60)
+    plt.ylim(0, 50)
+
+    # Displaying the plot
+    plt.show()
+    return ax
+
+def find_closest_waypoint( x, y, waypoints):
+    min_distance = float('inf')
+    closest_index = 0
+
+    for i, (wx, wy, _) in enumerate(waypoints):
+        distance = math.sqrt((x-wx)**2 + (y-wy)**2)
+        if distance < min_distance:
+            min_distance = distance
+            closest_index = i
+
+    return closest_index
+    
+def frenet_transform(x, y, waypoints):
+    closest_idx = find_closest_waypoint(x, y, waypoints)
+    wx, wy, wyaw = waypoints[closest_idx]
+
+    # Calculate direction vector of the path
+    dx_path = math.cos(wyaw)
+    dy_path = math.sin(wyaw)
+
+    # Calculate the vector from the waypoint to the car
+    dx_car = x - wx
+    dy_car = y - wy
+
+    # Project onto the direction vector (for s)
+    s_proj = dx_car * dx_path + dy_car * dy_path
+    s = closest_idx * 0.5 + s_proj
+
+    # Project onto the normal of the direction vector (for d)
+    dx_norm = -dy_path
+    dy_norm = dx_path
+    d_proj = dx_car * dx_norm + dy_car * dy_norm
+    d = d_proj
+
+    return s, d
+
+def sample_one_node(length):
+    node = random.randint(1, length)
+    return node
+
+def init_wpts(self):
+    WptsBuffer = []
+    for i in range(self.n_car):
+        path = self.PathBuffer[i].copy()
+        waypoints = []
+        for n in range(len(path)-1):
+            edge_data = self.G.get_edge_data(path[n],path[n+1])
+            waypoints += edge_data["waypoints"]
+        for k in range(len(waypoints)-1):
+            x1, y1, _ = waypoints[k]
+            x2, y2, _ = waypoints[k+1]
+            if (x1-x2)**2+(y1-y2)**2 <= 0.04:
+                print(" Cheking waypoints distance! distance < 0.2: ", waypoints[k], waypoints[k+1])
+        WptsBuffer.append(waypoints)
+    return WptsBuffer
+# ***************** Testing *****************************
 # # node_list = get_node_list()
 # # print(node_list)
 
