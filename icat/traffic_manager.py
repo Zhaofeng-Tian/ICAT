@@ -7,7 +7,7 @@ from car import build_car,get_car_param
 class TrafficManager:
 
 
-    def __init__(self, node_list, edge_list, G, n_car, car_states, car_info, start_nodes, goal_nodes = [], wpts_dist = 0.5):
+    def __init__(self, node_list, edge_list, G, n_car, car_states, car_info, start_nodes, goal_nodes = [], wpts_dist = 0.5, kwards = {}):
         self.wpts_dist = wpts_dist
         self.node_list = node_list
         self.node_range = [i+1 for i in range(len(node_list))]
@@ -17,6 +17,11 @@ class TrafficManager:
         self.start_nodes = start_nodes
         self.goal_nodes = goal_nodes
         self.car_info = car_info
+        self.look_ahead_dist = 2.0  # For wpts tracking
+        self.check_ahead_dist = 5.0 # For car following
+        self.safe_clearance = 1.0   # inter-car clearance
+        self.constant_speed = 5.0 
+        self.head_time = 1.0   
         self.PathBuffer = self.init_path()            # contains node like [[1,2], [5,10,12]]
         print("Before Checking PathBuffer: ",self.PathBuffer)
         for i in range(self.n_car):
@@ -27,6 +32,7 @@ class TrafficManager:
         print("Cheking state init", self.StateBuffer)
         self.FrenetBuffer = []
         self.EdgeOccupancy = []
+        self.DistBuffer = {}
         # Behavior option "speed keeping", "car following", "stop"
         # since cars spawn in safety point, so init as "speed keeping"
         self.BehaviorBuffer =["speed keeping" for i in range(self.n_car)]
@@ -130,10 +136,10 @@ class TrafficManager:
         else:
             raise ValueError (" Edge not in the path, in path state update!")
 
-    def get_look_ahead_point(self,clst_index,look_ahead_dist, id):
+    def get_look_ahead_point(self,clst_index, id):
         u,v,w = self.PathBuffer[id][:3]
         ahead_in_edge = (u,v)
-        n_ahead_indices = round(look_ahead_dist/self.wpts_dist)
+        n_ahead_indices = round(self.look_ahead_dist/self.wpts_dist)
         n1 = self.G.get_edge_data(u,v)["n_points"]
         ahead_points = self.WptsBuffer[id][0]+self.WptsBuffer[id][1]
         ahead_index = clst_index + n_ahead_indices
@@ -142,10 +148,7 @@ class TrafficManager:
             ahead_index = ahead_index - n1
         ahead_point = ahead_points[clst_index+n_ahead_indices]
         return ahead_in_edge, ahead_index, ahead_point
-            
-
-        
-            
+                     
             
     """          
     car_state["current_point"] = (x,y,yaw)
@@ -154,16 +157,16 @@ class TrafficManager:
     car_state["ahead_point"] = (x,y,yaw)
     """    
 
-    def sd_occupancy_update(self,car_states):
+    def state_update(self,car_states):
         sd_coords = []
-        occupied_edges = []
+        occupied_edges ={}
         for i in range(self.n_car):
             s,d,in_edge,clst_index, clst_point = self.localize_to_road(car_states[i],i)
             x,y,yaw,v,w = car_states[i]
             self.path_pop(in_edge,car_id=i)
             self.check_path(id=i, if_update_wpts=True)
             if dist(clst_point,self.StateBuffer["ahead_point"]) <= 0.5:
-                ahead_in_edge, ahead_index, ahead_point = self.get_look_ahead_point()
+                ahead_in_edge, ahead_index, ahead_point = self.get_look_ahead_point(clst_index, i)
             self.StateBuffer[i]["current_point"] = (x,y,yaw)
             self.StateBuffer[i]["linear_speed"] = v
             self.StateBuffer[i]["angular_speed"] = w
@@ -173,12 +176,79 @@ class TrafficManager:
             self.StateBuffer[i]["clst_point"] = clst_point
             self.StateBuffer[i]["ahead_in_edge"] = ahead_in_edge
             self.StateBuffer[i]["ahead_index"] = ahead_index
-            self.StateBuffer[i]["ahead_point"] = ahead_point
-            
+            self.StateBuffer[i]["ahead_point"] = ahead_point 
             sd_coords.append((s,d))
-            occupied_edges.append(in_edge)
+            if in_edge not in occupied_edges:
+                occupied_edges[in_edge] = [(i,s,d)]
+            else:
+                occupied_edges[in_edge].append((i,s,d))
         self.FrenetBuffer = sd_coords
         self.EdgeOccupancy = occupied_edges
+        self.car_dist_update()
+
+    def get_next_dist(self,id):
+        """
+        Check next edge for ditance measurements.
+        """
+        u,v,w = self.PathBuffer[id][:3]
+        s = self.FrenetBuffer[id][0]
+        d2v = self.G.get_edge_data(u,v)["weight"]-s
+        if (v,w) in self.EdgeOccupancy:
+            if len(self.EdgeOccupancy[(v,w)])>1:
+                sorted_data = sorted(self.EdgeOccupancy[in_edge], key=lambda x: x[1])
+                ds = sorted_data[0][1]
+                leading_id = sorted_data[0][0]
+            else:
+                ds = self.EdgeOccupancy[(v,w)][0][1]
+                leadind_id = sorted_data[0][0]
+        else:
+            ds = self.G.get_edge_data(v,w)["weight"]
+            leading_id = -1
+        d = d2v + ds
+        return (leading_id,d)
+
+    def car_dist_update(self):
+        self.DistBuffer = {}
+        for in_edge in self.EdgeOccupancy:
+            if len(self.EdgeOccupancy[in_edge])>1:
+                sorted_data = sorted(self.EdgeOccupancy[in_edge], key=lambda x: x[1])
+                for i in range(len(sorted_data)-1):
+                    distance = sorted_data[i+1][1] - sorted_data[i][1]
+                    id = sorted_data[i][0]
+                    leading_id = sorted_data[i+1][0]
+                    self.DistBuffer[id] = (leading_id,distance)
+                # first car
+                id = sorted_data[-1][0]
+                self.DistBuffer[id] = self.get_next_dist(id)
+            else:
+                id = self.EdgeOccupancy[in_edge][0][0]
+                if id not in self.DistBuffer:
+                    self.DistBuffer[id] = self.get_next_dist(id)
+                else:
+                    raise ValueError ("ID repeated in DistBuffer!")
+
+    def behavior_plan(self, id):
+        ego_v = self.StateBuffer[id]["linear_speed"]
+        leading_v = self.StateBuffer[leading_id]["linear_speed"]
+        leading_id = self.DistBuffer[id][0]
+        if leading_id == -1:
+            desired_v = self.constant_speed
+        else:
+            d = self.DistBuffer[id][1]
+            if d <= self.safe_clearance + self.car_info["hl"]*2:
+                desired_v = 0.0
+            else:                               
+                total_dist = d - self.safe_clearance + self.car_info["hl"]*2
+                disired_v = max(total_dist + self.head_time * (leading_v - ego_v) /self.head_time)
+        current_point = self.StateBuffer[id]["current_point"]
+        looking_point = self.StateBuffer[id]["ahead_point"]
+        """
+        Control interfaces?
+        """
+        return current_point, looking_point,disired_v 
+
+
+
 
 
 
@@ -187,25 +257,12 @@ class TrafficManager:
         Phase I: localize all agents and update path and wpts
         """
         car_states = self.get_car_state() # Euclidean state
-        self.sd_occupancy_update(car_states) # Update PathBuffer, FrenetBuffer, EdgeOccupancy
-        # self.check_path(if_update_wpts=True) # Update PathBuffer, WptsBuffer if len(path) <= 2
+        self.state_update(car_states) # Update PathBuffer, FrenetBuffer, EdgeOccupancy
         """
         Phase II: plan behavior for all agents
         """
-        edge_cache = {}
-        # build edge cache
-        for i in range(self.n_car):
-            in_edge = self.EdgeOccupancy[i].copy()
-            s,d = self.FrenetBuffer[i]
-            if in_edge not in edge_cache:
-                edge_cache[in_edge] = [(i,s,d)]
-            else:
-                edge_cache[in_edge].append((i,s,d))
-        for in_edge in edge_cache:
-            if len(edge_cache[in_edge])>1:
-                sorted_data = sorted(edge_cache[in_edge], key=lambda x: x[1])
-                for i in range(len(sorted_data)-1):
-                    distance = sorted_data[i+1][1] - sorted_data[i][1]
+        plan = self.behavior_plan()
+        self.excute_plan(plan)
 
 
 WAYPOINT_DISTANCE = 0.5
@@ -259,7 +316,7 @@ print(" car[0] state: ",cars[0].state)
 edge_wpts = [(21.0, 43.25, 0.0), (21.5, 43.25, 0.0), (22.0, 43.25, 0.0), (22.5, 43.25, 0.0), (23.0, 43.25, 0.0), (23.5, 43.25, 0.0)]
 # TM.localize_to_road(cars[0].state, car_id = 0)
 TM.localize_to_road(cars[0].state, car_id = 0)
-s,d, in_edge, closest_index = TM.localize_to_road([37.901,43.784, 0.,0.,0.], car_id = 0)
+s,d, in_edge, closest_index, closest_point = TM.localize_to_road([37.901,43.784, 0.,0.,0.], car_id = 0)
 print("In edge: ", in_edge)
 
 # [(37.6, 43.25, 0.0), (38.1, 43.25, 0.0), (38.6, 43.25, 0.0), (39.1, 43.25, 0.0), (39.6, 43.25, 0.0),
