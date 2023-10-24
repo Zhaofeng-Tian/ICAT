@@ -295,7 +295,7 @@ def get_lane_lines(waypoints, road_width=4):
 
     return left_lane_points, right_lane_points
 
-def view_topo(node_list, edge_list,if_arrow = False):
+def view_topo(ax, node_list, edge_list,if_arrow = False):
     # node_list = get_node_list()
     # edge_list = get_edge_list(node_list=node_list)
     # for edge in edge_list:
@@ -304,7 +304,7 @@ def view_topo(node_list, edge_list,if_arrow = False):
     node_list = node_list
     edge_list = edge_list
 
-    fig,ax = plt.subplots()
+    # 
     img = load_img('icat.png')
 
     for node_id, data in node_list:
@@ -346,14 +346,14 @@ def view_topo(node_list, edge_list,if_arrow = False):
 
     # Plotting the image
     # plt.imshow(img, origin='lower', extent=[0, 60, 0, 50])  # The extent parameter sets the axis limits and 'origin' is now set to 'lower'.
-    plt.imshow(img, extent=[0, 60, 0, 50]) 
+    # plt.imshow(img, extent=[0, 60, 0, 50]) 
     # Setting the x and y limits for the axes
     plt.xlim(0, 60)
     plt.ylim(0, 50)
 
     # Displaying the plot
-    plt.show()
-    return ax
+    # plt.show()
+    # return ax
 
 def find_closest_waypoint( x, y, waypoints):
     min_distance = float('inf')
@@ -410,6 +410,86 @@ def init_wpts(self):
                 print(" Cheking waypoints distance! distance < 0.2: ", waypoints[k], waypoints[k+1])
         WptsBuffer.append(waypoints)
     return WptsBuffer
+
+def plot_cars(car_patches, car_states, car_length, car_width):
+    for i in range(len(car_states)):
+        x,y,theta = car_states[:3]
+        car_patches[i].set_xy((x - car_length / 2 * np.cos(theta) + car_width / 2 * np.sin(theta), 
+                y - car_width / 2 * np.cos(theta) - car_length / 2 * np.sin(theta)))
+        # car.set_xy((x, y))
+        car_patches[i].angle = np.degrees(theta)
+
+
+def get_merge_node():
+    node_list = get_node_list()
+    edge_list = get_edge_list(node_list)
+    G = build_graph(node_list, edge_list)
+    
+    # (24,  {"coord":(52.4,16.8,-pi/2), "pre":[(25,'s'),(34,'r')], "next":[(23,'s')], "itsc": False}),
+    # (25,  {"coord":(52.4,33.6,-pi/2), "pre":[(26,'s')], "next":[(24,'s'),(38,'r')], "itsc": False}),    
+    merge_node_list = {} #[(v, [(u,v), (w,v), (z,v)])]
+    merge_edge_list = {} #[(u,v): [(w,v), (z,v)]] key = (u,v), value is a list
+    for node in node_list:
+        id, data = node
+        if len(data["pre"]) > 1:
+            in_edges = []
+            for i in range(len(data["pre"])):
+                u = data["pre"][i][0]
+                in_edges.append((u,id))
+            merge_node_list[id] = in_edges
+    for id in merge_node_list:
+        edges = merge_node_list[id]
+        for edge in edges:
+            merge_edge_list[edge] = [t for t in edges if t != edge]
+    return merge_node_list, merge_edge_list
+    
+def get_merge_node():
+    node_list = get_node_list()
+    edge_list = get_edge_list(node_list)
+    G = build_graph(node_list, edge_list)
+    
+    # (24,  {"coord":(52.4,16.8,-pi/2), "pre":[(25,'s'),(34,'r')], "next":[(23,'s')], "itsc": False}),
+    # (25,  {"coord":(52.4,33.6,-pi/2), "pre":[(26,'s')], "next":[(24,'s'),(38,'r')], "itsc": False}),    
+    merge_node_list = {} #[(v, [(u,v), (w,v), (z,v)])]
+    merge_edge_list = {} #[(u,v): [(w,v), (z,v)]] key = (u,v), value is a list
+    for node in node_list:
+        id, data = node
+        if len(data["pre"]) > 1:
+            in_edges = []
+            for i in range(len(data["pre"])):
+                u = data["pre"][i][0]
+                in_edges.append((u,id))
+            merge_node_list[id] = in_edges
+    for id in merge_node_list:
+        edges = merge_node_list[id]
+        for edge in edges:
+            merge_edge_list[edge] = [t for t in edges if t != edge]
+    return merge_node_list, merge_edge_list
+
+def get_diverge_node():
+    node_list = get_node_list()
+    edge_list = get_edge_list(node_list)
+    G = build_graph(node_list, edge_list)
+    
+    # (24,  {"coord":(52.4,16.8,-pi/2), "pre":[(25,'s'),(34,'r')], "next":[(23,'s')], "itsc": False}),
+    # (25,  {"coord":(52.4,33.6,-pi/2), "pre":[(26,'s')], "next":[(24,'s'),(38,'r')], "itsc": False}),    
+    diverge_node_list = {} #[(v, [(u,v), (w,v), (z,v)])]
+    diverge_edge_list = {} #[(u,v): [(w,v), (z,v)]] key = (u,v), value is a list
+    for node in node_list:
+        id, data = node
+        if len(data["next"]) > 1:
+            in_edges = []
+            for i in range(len(data["next"])):
+                v = data["next"][i][0]
+                in_edges.append((id,v))
+            diverge_node_list[id] = in_edges
+    for id in diverge_node_list:
+        edges = diverge_node_list[id]
+        for edge in edges:
+            diverge_edge_list[edge] = [t for t in edges if t != edge]
+    return diverge_node_list, diverge_edge_list 
+
+            
 # ***************** Testing *****************************
 # # node_list = get_node_list()
 # # print(node_list)
@@ -420,3 +500,14 @@ def init_wpts(self):
 
 # wps, d = get_straight_waypoints((21,3.25),(38,3.25))
 # print("way points: ", wps, d)
+# merge_node_list, merge_edge_list = get_merge_node()
+# # print(merge_node_list)
+# print("**************")
+# for edge in merge_edge_list:
+#     print("edge: {}, merging with {}".format(edge, merge_edge_list[edge]))
+
+diverge_node_list, diverge_edge_list = get_diverge_node()
+# print(diverge_node_list)
+print("**************")
+for edge in diverge_edge_list:
+    print("edge: {}, diverging with {}".format(edge, diverge_edge_list[edge]))
