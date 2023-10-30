@@ -10,7 +10,7 @@ class CarParam:
     Halfwidth = 10.0 cm
     Lidar     = 13.0 cm
     """
-    def __init__(self, shape = np.array([2.35,0.8,0.4,1.0,1.3]), type = "car", round_r = 1.5):
+    def __init__(self, shape = np.array([2.35,0.8,0.4,1.0,1.3]), type = "diff", round_r = 1.5):
         # if type == "normal": # The params are based on our own robot ZebraT
         # wheelbase, front, rear suspension, half width, lidar to center(defaut mount on the front and midline)
         # self.shape = np.array([0.53,0.25,0.25,0.35,0.65])
@@ -30,10 +30,10 @@ class CarParam:
         self.a_limits = np.array([[0.8, 1.0],
                                     [-1., -1.0]])
         if type == "diff" or type == "round":
-            self.v_limits = np.array([[1.5, 1.0 ],
-                                        [-1.5, -1.0]])
-            self.a_limits = np.array([[1, 1.5],
-                                        [-2., -1.5]])
+            self.v_limits = np.array([[5., 1.0 ],
+                                        [0., -1.0]])
+            self.a_limits = np.array([[3., 1.5],
+                                        [-3., -1.5]])
         # Lidar param
         self.fan_range = np.array([0, 2*pi])
         self.min_range = 0.1
@@ -139,7 +139,7 @@ class CarParam:
 
 def build_car(i, CAR_PARAM, coord):
     x,y,yaw = coord
-    car = CarRobot(id=i, param= CAR_PARAM, initial_state=np.array([x,y,yaw,0.,0.]))
+    car = CarRobot(id=i, param= CAR_PARAM, initial_state=np.array([x,y,yaw,0.,0.]), dt = 0.1)
     return car
 
 def get_car_param():

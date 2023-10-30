@@ -1,3 +1,4 @@
+
 import numpy as np
 import networkx as nx
 import random
@@ -6,7 +7,9 @@ from car import build_car,get_car_param
 from math import pi, sin, cos, atan2
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
-
+import bisect
+from quintic import quintic_1d_plan
+from plot import *
 class TrafficManager:
 
 
@@ -21,22 +24,26 @@ class TrafficManager:
         self.goal_nodes = goal_nodes
         self.car_info = car_info
         self.look_ahead_dist = 2.0+car_info["hl"]  # For wpts tracking
-        self.check_ahead_dist = 5.0 # For car following
-        self.safe_clearance = 1.0   # inter-car clearance
+        self.check_ahead_dist = 10.0 # For car following
+        self.safe_clearance = 1.0 + 2*car_info["hl"]  # inter-car center clearance 
         self.constant_speed = 5.0 
         self.head_time = 1.0  
         self.merge_node_list, self.merge_edge_list = get_merge_node()
         self.diverge_node_list, self.diverge_edge_list = get_diverge_node() 
         self.PathBuffer = self.init_path()            # contains node like [[1,2], [5,10,12]]
         for i in range(self.n_car):
-            self.check_path(i)
+            self.check_path(i,if_update_wpts = False)
+        self.LocalWptsBuffer = [np.empty(0) for i in range(self.n_car)]
         self.WptsBuffer = self.init_wpts()            # contains waypoints like [ [(x,y,yaw)...], [], [] ]
+        self.Sbuffer = [np.empty(0) for i in range(self.n_car)]                             # contains s coords along the path       
+        self.TrajBuffer = [np.empty(0) for i in range(self.n_car)]
         self.StateBuffer = self.init_states(car_states)
         self.FrenetBuffer = []
         self.EdgeOccupancy = []
         self.DistBuffer = {}
         self.BehaviorBuffer =["speed keeping" for i in range(self.n_car)]
         self.CommandBuffer = []
+        self.dt = 0.1
 
     def init_states(self, states):
         StateBuffer = []
@@ -67,18 +74,45 @@ class TrafficManager:
         for i in range(self.n_car):
             path = self.PathBuffer[i].copy()
             waypoints = []
+            local_wpts = []
             for n in range(len(path)-1):
                 edge_data = self.G.get_edge_data(path[n],path[n+1])
                 waypoints.append(edge_data["waypoints"])
+                local_wpts += edge_data["waypoints"]
+            self.LocalWptsBuffer[i] = np.array(local_wpts)
             WptsBuffer.append(waypoints)
         return WptsBuffer
+    
+    def init_s_path(self):
+        """ three sections for s path"""
+        for i in range(self.n_car):
+            self.update_s_path(i)
+    
+    def update_s_path(self,id):
+        Spath = np.empty(0)
+        former_s = 0
+        for i in range(3): 
+            new = np.array([0.5 * n for n in range(len(self.WptsBuffer[id][i]))])+former_s
+            Spath = np.concatenate((Spath, new))
+            former_s += self.get_edge_length((self.PathBuffer[id][i],self.PathBuffer[id][i+1] )) 
+            print(" Path edge: {}, number of wpts: {}, edge lengdth: {} ".format((self.PathBuffer[id][i],self.PathBuffer[id][i+1]), 
+                    len(self.WptsBuffer[id][i]),self.get_edge_length((self.PathBuffer[id][i],self.PathBuffer[id][i+1])) ))
+        self.Sbuffer[id] = Spath
+        # print("updated s path of id: {}, s_path: {}".format(id, self.Sbuffer[id]))
+        # print("bisect 78: ", bisect.bisect(self.Sbuffer[id], 79.0))
+        # print(" index value: ", self.Sbuffer[id][bisect.bisect(self.Sbuffer[id], 79.0)])
+        # assert 1==2, " in update_s_path"
+
 
     def update_path_wpts(self, path, i):
         waypoints = []
+        local_wpts = []
         for n in range(len(path)-1):
             edge_data = self.G.get_edge_data(path[n],path[n+1])
             waypoints.append(edge_data["waypoints"])
+            local_wpts += edge_data["waypoints"]
         self.WptsBuffer[i] = waypoints
+        self.LocalWptsBuffer[i] = np.array(local_wpts)
         
     def check_path(self, id, if_update_wpts = False):
         """
@@ -86,7 +120,7 @@ class TrafficManager:
         if not, append another node to replan the path.
         """
         path = self.PathBuffer[id]
-        while len(path) <= 3:
+        while len(path) < 4:
             print(" ***************************** In check path, doing adding")
             new_goal_node = sample_one_node(len(self.node_list))
             while new_goal_node in path:
@@ -94,8 +128,9 @@ class TrafficManager:
             self.goal_nodes[id] = new_goal_node
             path = [path[0]] + nx.astar_path(self.G, path[1], new_goal_node, heuristic=None, weight="weight")
             self.PathBuffer[id] = path
-            if if_update_wpts:
-                self.update_path_wpts(path, id)
+        if if_update_wpts:
+            self.update_path_wpts(path, id)
+            self.update_s_path(id)
 
     def localize_to_road(self, state, car_id):
         # Make sure no change to path
@@ -112,11 +147,11 @@ class TrafficManager:
             if s < 0 :
                 # in_edge = (-1, path[n])
                 in_edge = (path[n], path[n+1])
-                print(" In edge: ", path[n],path[n+1])
+                # print(" In edge: ", path[n],path[n+1])
                 return s,d, in_edge, closest_index, closest_point
             if s >= 0 and s < self.G.get_edge_data(path[n],path[n+1])["weight"]:
                 in_edge = (path[n], path[n+1])
-                print(" In edge: ", path[n],path[n+1])
+                # print(" In edge: ", path[n],path[n+1])
                 return s,d,in_edge, closest_index, closest_point
             
             print("the closest index: ", closest_index)
@@ -142,10 +177,10 @@ class TrafficManager:
                     self.WptsBuffer[car_id] = wpts
                     assert len(self.WptsBuffer[car_id])!=orig_len, "Fail to pop out passed waypoints!"
         else:
-            print("car id , ", car_id)
-            print("car's path: ", path)
-            print("car in edge: ", in_edge)
-            print("car state: ", self.StateBuffer[car_id])
+            # print("car id , ", car_id)
+            # print("car's path: ", path)
+            # print("car in edge: ", in_edge)
+            # print("car state: ", self.StateBuffer[car_id])
             raise ValueError (" Edge not in the path, in path state update!")
 
     def get_look_ahead_point(self,clst_index, id):
@@ -307,38 +342,179 @@ class TrafficManager:
             if len(d2p_list) > 0:
                 d2p_list = sorted(d2p_list, key=lambda x: x[0]) # sort with d2p
 
-
+    def acc_traj_plan(self, id):
+        """
+        Only consider car following logic, where speed keeping logic is included.
+        1. Reference path: waypoints [] []
+        2. S coordinate: current sc,
+        3. planned points s coords, [st0, st1, st2,...., stn]
+        4. S buffer associated to waypoints
+        5. search cooresponding (x0,y0)， （x1, x2) ...
+        for each point with st + sc, search index in s waypoints, 
+        多出的ds, 由xi,yi,+ cos(yawi) 等计算出 x,y, yaw
                 
+        """  
+        ss = self.StateBuffer[id]["sd"][0]              # current s coord
+        vs = self.StateBuffer[id]["linear_speed"]       # current speed assume perfectly on the road direction
+        a_s =  0.0
+        se, ve, a_e, minT, maxT, logic = self.calc_acc_end_state(id)
+        leading_id, dist = self.DistBuffer[id]
+        print("checking backward: ", id)
+        print(" dist: ", dist, " ID: ", id)
+        print("leading ID: ", leading_id)
+        print("dist checking: ", self.DistBuffer[id])
+        print("EGO state: ", self.StateBuffer[id])
+        print("Leading state: ", self.StateBuffer[leading_id])
+        print("ss: ",ss)
+        print("se: ", se)
+        print("vs: ", vs)
+        print("ve: ", ve)
+        print("logic: ", logic)
+        assert ss <= se, "End point is backward!!!"
+        # then we plan a trajectory along s coord
+        Ttime, Ts, Tv, Ta, Tj = quintic_1d_plan(ss, vs, a_s, se,ve, a_e,self.car_info["amax"], self.car_info["jerkmax"],self.dt, minT, maxT)  
+        Traj= self.calc_traj_from_s(id,Ts,Tv)
+        self.TrajBuffer[id] = Traj
 
-    def check_merge_edge(edge):
-        if edge in self.EdgeOccupancy:
-            id,s,d = self.EdgeOccupancy[edge][-1]
-            return id, s
-        else:
-            return -1, 0.
+    def calc_traj_from_s(self, id, Ts, Tv):
+        Txyyaw = []
+        Traj = []
+        # print("ID: ",id , " ***************")
+        # print("Ts: ", Ts)
+        # print("Tv: ", Tv)
+        assert len(Ts) == len(Tv), "s trajectory length not equal to speed length!"
+        for i in range(len(Ts)):
+            if Ts[i] >= self.Sbuffer[id][-1]:
+                assert Ts[i] < self.Sbuffer[id][-1], "Ts value beyond the s value in buffer"
+                break
+            index = bisect.bisect(self.Sbuffer[id],Ts[i])-1
+            ds = Ts[i] - self.Sbuffer[id][index]
+            print("bigger than s checking")
+            print("Car ID: {}, bisect index {}, Ts {}, Sbuffer[id][index] {}, self.LocalWptsBuffer[id]{}".format(id,index, Ts, self.Sbuffer[id][index],self.LocalWptsBuffer[id] ))
+            assert ds >= 0, "index value bigger than s_value!"
+            px, py, yaw = self.LocalWptsBuffer[id][index]
+            x = px + ds*cos(yaw)
+            y = py + ds*sin(yaw)
+            Txyyaw.append((x,y,yaw))
+        for k in range(len(Txyyaw)-1):
+            x, y, yaw = Txyyaw[k]
+            yaw_next = Txyyaw[k+1][2]
+            # yaw_next = yaw + w*DT
+            v = Tv[k]
+            w = (yaw_next - yaw)/self.dt
+            Traj.append((x,y,yaw,v,w))
+        Traj.append((*Txyyaw[-1],Tv[-1], w))
+        assert len(Traj) == len(Ts), "final path length not equal to Ts! "
+        return np.array(Traj)
 
-    def plan_car_following(self, id):
-        leading_id = self.DistBuffer[id][0]
-        ego_v = self.StateBuffer[id]["linear_speed"]
-        leading_v = self.StateBuffer[leading_id]["linear_speed"]
-        desired_v = ego_v
-        """
-        This is car following logic.
-        """
-        if leading_id == -1:
-            desired_v = self.constant_speed
+
+
+    def calc_acc_end_state(self, id):
+        TAU = 0.2 # a parameter to tune headway increment with leading car speed increasing,
+        leading_id, dist = self.DistBuffer[id]
+        # no leading cars in the current and the next section or far way
+        if leading_id == -1 or dist >= self.check_ahead_dist: 
+            se = self.FrenetBuffer[id][0] + self.check_ahead_dist
+            ve = self.constant_speed # desired speed
+            a_e = 0.0
+            minT = self.check_ahead_dist / (1.2 * self.constant_speed) # overspeed no more than 20%
+            maxT = self.check_ahead_dist / (self.constant_speed/2)
+            logic = "too far"
         else:
-            d = self.DistBuffer[id][1]
-            if d <= self.safe_clearance + self.car_info["hl"]*2:
-                desired_v = 0.0
-            else:                               
-                total_dist = d - self.safe_clearance + self.car_info["hl"]*2
-                acc_speed = total_dist + self.head_time * (leading_v - ego_v) /self.head_time
-                desired_v = max(acc_speed, self.constant_speed)
-        current_point = self.StateBuffer[id]["current_point"]
-        looking_point = self.StateBuffer[id]["ahead_point"]
-        s,d = self.StateBuffer[id]["sd"]
-        return current_point, looking_point, s,d, ego_v , desired_v 
+            if dist > self.safe_clearance:
+                # There is a leading car, do Adaptive Cruise Control logic
+                # starget(t) := slv(t) − [D0 + τ s˙lv(t)], from the paper Optimal Trajectory Generation for Dynamic Street Scenarios in a Frene´t Frame
+                # safe clearance, if lv = 0, 1m, lv=5,2m  end speed should be 0 m/s to assure a full stop
+                leading_v = self.StateBuffer[leading_id]["linear_speed"]
+                print("ego position: ", self.StateBuffer[id]["sd"])
+                print(" leading car position: ", self.FrenetBuffer[id][0] + dist)
+                # print(" leading car pose get: ", self.StateBuffer[leading_id]['sd'])
+                se = self.FrenetBuffer[id][0] + max((dist + TAU* leading_v - self.safe_clearance ),0.)
+                ve = 0.0 # ensure a full stop at the tracking end point
+                a_e = 0.0 # stop smoothly
+                minT = dist /(1.2 * self.constant_speed) # relax a little
+                maxT = dist / (self.constant_speed/4)    # enlarge the time area for stable search
+                logic = "following"
+            else: # emergency brake!
+                a_brake = self.car_info["amax"]
+                v = self.StateBuffer[id]["linear_speed"]
+                t = max(v/a_brake,self.dt)
+                ds = max(v*(t+self.dt) - 0.5*a_brake*t**2,0.0)
+                se = self.FrenetBuffer[id][0] + ds
+                ve = 0.
+                a_e = 0.
+                minT = max(t-2*self.dt, self.dt)
+                maxT = t+5*self.dt
+                print("*********** Emergency Brake! *************")
+                print(" dist: ", dist, " ID: ", id)
+                print("leading ID: ", leading_id)
+                print("dist checking: ", self.DistBuffer[id])
+                print("EGO state: ", self.StateBuffer[id])
+                print("Leading state: ", self.StateBuffer[leading_id])
+                print("v: {}, a: {}, t: {}, ds: {}".format(v,a_brake,t,ds))
+                print("a_brake: ", a_brake)
+                logic = "brake"
+                
+        return se, ve, a_e, minT, maxT, logic
+
+
+
+
+    # def check_merge_edge(edge):
+    #     if edge in self.EdgeOccupancy:
+    #         id,s,d = self.EdgeOccupancy[edge][-1]
+    #         return id, s
+    #     else:
+    #         return -1, 0.
+
+    # def plan_car_following(self, id):
+    #     leading_id = self.DistBuffer[id][0]
+    #     ego_v = self.StateBuffer[id]["linear_speed"]
+    #     leading_v = self.StateBuffer[leading_id]["linear_speed"]
+    #     desired_v = ego_v
+    #     """
+    #     This is car following logic.
+    #     """
+    #     if leading_id == -1:
+    #         desired_v = self.constant_speed
+    #     else:
+    #         d = self.DistBuffer[id][1]
+    #         if d <= self.safe_clearance + self.car_info["hl"]*2:
+    #             desired_v = 0.0
+    #         else:                               
+    #             total_dist = d - self.safe_clearance + self.car_info["hl"]*2
+    #             acc_speed = total_dist + self.head_time * (leading_v - ego_v) /self.head_time
+    #             desired_v = max(acc_speed, self.constant_speed)
+    #     current_point = self.StateBuffer[id]["current_point"]
+    #     looking_point = self.StateBuffer[id]["ahead_point"]
+    #     s,d = self.StateBuffer[id]["sd"]
+    #     return current_point, looking_point, s,d, ego_v , desired_v 
+
+
+    # def excute_plan(self, plan):
+    #     """ Pure pursuit Controller """
+    #     Kp = 0.45
+    #     current_point, looking_point,s,d, ego_v, disired_v = plan
+    #     a = disired_v - ego_v
+    #     if a >= 0:
+    #         a = min(a, self.car_info["amax"])
+    #     if a < 0:
+    #         a = max(a, self.car_info["amin"])
+    #     planned_v = ego_v+a
+    #     looking_yaw = looking_point[2]
+    #     ego_yaw = current_point[2]
+    #     dangle1 = 0 - d
+    #     dangle2 = self.to_pi(looking_yaw - ego_yaw)
+    #     # print("following yaw: ", round(looking_yaw,3), "  ego yaw: ", round(ego_yaw,3))
+    #     # print(" ******* in Control", round(dangle1,3), round(dangle2,3))
+    #     planned_w = Kp*(dangle1+dangle2)
+    #     return planned_v, planned_w
+
+    def trajectory_update(self):
+        for id in range(self.n_car):
+            self.acc_traj_plan(id)
+        
+        # TO DO: merge traj plan
 
     def traffic_state_update(self,car_states):
         """
@@ -349,31 +525,15 @@ class TrafficManager:
         """
         Phase II: plan behavior for all agents
         """
-        self.CommandBuffer = []
-        for id in range(self.n_car):
-            plan = self.plan_car_following(id)
-            self.CommandBuffer.append(self.excute_plan(plan))
-        
-            
+        # self.CommandBuffer = []
+        # for id in range(self.n_car):
+        #     plan = self.plan_car_following(id)
+        #     self.CommandBuffer.append(self.excute_plan(plan))
+        self.trajectory_update()
 
-    def excute_plan(self, plan):
-        """ Pure pursuit Controller """
-        Kp = 0.45
-        current_point, looking_point,s,d, ego_v, disired_v = plan
-        a = disired_v - ego_v
-        if a >= 0:
-            a = min(a, self.car_info["amax"])
-        if a < 0:
-            a = max(a, self.car_info["amin"])
-        planned_v = ego_v+a
-        looking_yaw = looking_point[2]
-        ego_yaw = current_point[2]
-        dangle1 = 0 - d
-        dangle2 = self.to_pi(looking_yaw - ego_yaw)
-        # print("following yaw: ", round(looking_yaw,3), "  ego yaw: ", round(ego_yaw,3))
-        # print(" ******* in Control", round(dangle1,3), round(dangle2,3))
-        planned_w = Kp*(dangle1+dangle2)
-        return planned_v, planned_w
+    def get_traj_buffer(self):
+        return self.TrajBuffer.copy()        
+
 
     def pos_pi(self,angle):
         if angle < 0:
@@ -388,10 +548,10 @@ class TrafficManager:
 
 
 WAYPOINT_DISTANCE = 0.5
-N_CAR = 20
+N_CAR = 5
 N_NODE = 42
 CAR_PARAM = get_car_param()
-CAR_INFO = {"hl":1.775, "hw": 1.0, "amax":2.0, "amin":-3.0} # half length, half width of the car
+CAR_INFO = {"hl":1.775, "hw": 1.0, "amax":3.0, "amin":-3.0, "jerkmax": 10.0} # half length, half width of the car
 DT = 0.1
 N_LOOP = 10000
 
@@ -407,6 +567,10 @@ start_nodes = nodes[:N_CAR]
 goal_nodes = nodes[N_CAR:]
 # start_nodes[0] = 5
 # goal_nodes[0] = 6
+start_nodes[0] = 16
+goal_nodes[0] = 4
+start_nodes[1] = 15
+goal_nodes[1] = 4
 # start_nodes = [21, 37, 28, 7, 39]
 # goal_nodes = [19, 5, 4, 18, 36]
 # Initalize Cars
@@ -425,13 +589,17 @@ for i in range(N_CAR):
     # Add cars
     car = build_car(i, CAR_PARAM, coord)
     cars.append(car)
-    car_states.append(car.state)
+    car_states.append(car.state.copy())
     # Add paths
     path = nx.astar_path(G, start_nodes[i], goal_nodes[i], heuristic=None, weight="weight")
     path_buffer.append(path)
  
 fig,ax = plt.subplots()
-view_topo(ax, node_list, edge_list, if_arrow=False)
+# plt.imshow(img, extent=[0, 60, 0, 50]) 
+# Setting the x and y limits for the axes
+plt.xlim(0, 60)
+plt.ylim(0, 50)
+# view_topo(ax, node_list, edge_list, if_arrow=False)
 # plt.show()
 
 # point = patches.PathPatch(
@@ -494,19 +662,40 @@ for n_loop in range(N_LOOP):
         # plt.scatter(ahead_point[0], ahead_point[1], marker='x', color='red', s=100)
         # print("Robot {} in edge: {}, with path {} ".format( i, TM.StateBuffer[i]["in_edge"], TM.PathBuffer[i] ))
 
-
-
-    plt.pause(0.1)
-
-    # car_states = []
-    for i in range(N_CAR):
-        cmd = cars[i].move_base(TM.CommandBuffer[i])
-        print("cmd is: ", cmd)
-        print("car states before update: ", car_states[i])
-        cars[i].state_update(cmd)
-        # car_states.append(cars[i].state)
-        print("car states after update: ", car_states[i])
+    plt.clf()
+    plt.xlim(0, 60)
+    plt.ylim(0, 50)
+    plot_topo(node_list,edge_list, ax, if_arrow=False)
+    trajbuffer = TM.get_traj_buffer()
+    # for traj in trajbuffer:
+    #     print("********************* Traj: *****************")
+    #     print(traj)
+    #     print("*******************************")
+    #     plot_traj(traj)
+    plot_cars(trajbuffer, car_length, car_width)
     
+         
+
+
+    plt.pause(0.01)
+
+    # # car_states = []
+    # for i in range(N_CAR):
+    #     cmd = cars[i].move_base(TM.CommandBuffer[i])
+    #     print("cmd is: ", cmd)
+    #     print("car states before update: ", car_states[i])
+    #     cars[i].state_update(cmd)
+    #     # car_states.append(cars[i].state)
+    #     print("car states after update: ", car_states[i])
+
+    """ 
+    Car state update
+    """
+    car_states=[]
+    Tbuffer = TM.get_traj_buffer()
+    for id in range(N_CAR):
+        car_states.append(Tbuffer[id][1])
+
     
     
 

@@ -26,9 +26,9 @@ class QuinticPolynomial:
                       vxe - self.a1 - 2 * self.a2 * time,
                       axe - 2 * self.a2])
         x = np.linalg.solve(A, b)
-        print("A ", A)
-        print("b ", b)
-        print("x: ", x)
+        # print("A ", A)
+        # print("b ", b)
+        # print("x: ", x)
         self.a3 = x[0]
         self.a4 = x[1]
         self.a5 = x[2]
@@ -180,7 +180,7 @@ def quintic_plan(sx, sy, syaw, sv, sa, gx, gy, gyaw, gv, ga, max_accel, max_jerk
 
     time, rx, ry, ryaw, rv, ra, rj = [], [], [], [], [], [], []
 
-    for t in np.arange(0.0,T, dt):
+    for t in np.arange(0.0,T+dt, dt):
         time.append(t)
         rx.append(xqp.calc_point(t))
         ry.append(yqp.calc_point(t))
@@ -206,12 +206,31 @@ def quintic_plan(sx, sy, syaw, sv, sa, gx, gy, gyaw, gv, ga, max_accel, max_jerk
             j *= -1
         rj.append(j)
 
-    if max([abs(i) for i in ra]) > max_accel and max([abs(i) for i in rj]) > max_jerk:
+    if max([abs(i) for i in ra]) <= max_accel and max([abs(i) for i in rj]) <= max_jerk:
         print("This path is not feasible!!")
 
-
-
     return time, rx, ry, ryaw, rv, ra, rj
+
+def quintic_1d_plan(sx, sv, sa, gx,gv, ga, max_accel, max_jerk, dt, minT, maxT):
+    for T in np.arange(minT,maxT+dt, dt):
+        # print(" Loop in time step: ", T)
+        qp = QuinticPolynomial(sx, sv, sa, gx, gv, ga, T)
+        # sample s
+        time, rs, rv, ra, rj = [], [], [], [], []
+        for t in np.arange(0.0,T+dt,dt):
+            time.append(t)
+            rs.append(qp.calc_point(t))
+            rv.append(qp.calc_first_derivative(t))
+            ra.append(qp.calc_second_derivative(t))
+            rj.append(qp.calc_third_derivative(t))
+        ds_list = [rs[i+1]-rs[i] for i in range(len(rs)-1)]
+        if max([abs(i) for i in ra]) <= max_accel and max([abs(i) for i in rj]) <= max_jerk and min(rv)>=0. and min(ds_list) >=0.:
+            # print("This path is not dynamically feasible!!")
+            break
+    print("Ts: ", rs)
+    print("ds list: ", ds_list)
+    assert len(time) > 0 and min(ds_list)>=0., "Not found feasible solution, check planning method!"
+    return time, rs, rv, ra, rj
 
 
 def plot_arrow(x, y, yaw, length=1.0, width=0.5, fc="r", ec="k"):  # pragma: no cover
@@ -226,3 +245,14 @@ def plot_arrow(x, y, yaw, length=1.0, width=0.5, fc="r", ec="k"):  # pragma: no 
         plt.arrow(x, y, length * math.cos(yaw), length * math.sin(yaw),
                   fc=fc, ec=ec, head_width=width, head_length=width)
         plt.plot(x, y)
+
+def test():
+    time, rs, rv, ra, rj = quintic_1d_plan(15.7, 6.086, 0., 21.87+3.0, 0.00, 0., 3.0, 10.0, 0.1,  0.1, 10.0 )
+    print("time: ", time)
+    print("ref s: ", rs)
+    print("ref v: ", rv)
+    print("ref a", ra)
+    print("ref jerk: ", rj)
+
+if __name__ =="__main__":
+    test()

@@ -120,6 +120,7 @@ def build_edge(u,v,u_coord,v_coord, behavior):
         waypoints, d = get_curve_waypoints(u_coord, v_coord, 'r', distance= WAYPOINT_DISTANCE)
     elif behavior == 'l':
         waypoints, d = get_curve_waypoints(u_coord, v_coord, 'l', distance= WAYPOINT_DISTANCE)
+        
     edge = (u,v,{"weight": d,"behavior":behavior, "waypoints":waypoints})
     return edge
 

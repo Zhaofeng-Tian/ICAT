@@ -36,9 +36,9 @@ def view_topo(if_arrow = False):
         x_coords, y_coords, yaw = zip(*points)
 
         # Plotting the points
-        # plt.scatter(x_coords, y_coords, color='red')  # You can change the color and other properties as needed.
-        # # Drawing lines connecting the points
-        # plt.plot(x_coords, y_coords, color='red')  # You can change the color and other properties as needed.
+        plt.scatter(x_coords, y_coords, color='red')  # You can change the color and other properties as needed.
+        # Drawing lines connecting the points
+        plt.plot(x_coords, y_coords, color='red')  # You can change the color and other properties as needed.
 
     if if_arrow:
         for edge in edge_list:
@@ -189,9 +189,9 @@ def localize_to_road():
         # print("car state: ", self.StateBuffer[car_id])
         raise ValueError (" Cannot localize to the path !")
 
-view_trajectory()    
+# view_trajectory()    
 # test_graph()
-# view_topo(if_arrow=True)
+view_topo(if_arrow=False)
 # test_save_edges()
 # test_load_edges()
 # localize_to_road()
