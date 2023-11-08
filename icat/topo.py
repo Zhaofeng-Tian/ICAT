@@ -419,30 +419,6 @@ def plot_cars(car_patches, car_states, car_length, car_width):
                 y - car_width / 2 * np.cos(theta) - car_length / 2 * np.sin(theta)))
         # car.set_xy((x, y))
         car_patches[i].angle = np.degrees(theta)
-
-
-def get_merge_node():
-    node_list = get_node_list()
-    edge_list = get_edge_list(node_list)
-    G = build_graph(node_list, edge_list)
-    
-    # (24,  {"coord":(52.4,16.8,-pi/2), "pre":[(25,'s'),(34,'r')], "next":[(23,'s')], "itsc": False}),
-    # (25,  {"coord":(52.4,33.6,-pi/2), "pre":[(26,'s')], "next":[(24,'s'),(38,'r')], "itsc": False}),    
-    merge_node_list = {} #[(v, [(u,v), (w,v), (z,v)])]
-    merge_edge_list = {} #[(u,v): [(w,v), (z,v)]] key = (u,v), value is a list
-    for node in node_list:
-        id, data = node
-        if len(data["pre"]) > 1:
-            in_edges = []
-            for i in range(len(data["pre"])):
-                u = data["pre"][i][0]
-                in_edges.append((u,id))
-            merge_node_list[id] = in_edges
-    for id in merge_node_list:
-        edges = merge_node_list[id]
-        for edge in edges:
-            merge_edge_list[edge] = [t for t in edges if t != edge]
-    return merge_node_list, merge_edge_list
     
 def get_merge_node():
     node_list = get_node_list()
@@ -507,8 +483,59 @@ def get_diverge_node():
 # for edge in merge_edge_list:
 #     print("edge: {}, merging with {}".format(edge, merge_edge_list[edge]))
 
-diverge_node_list, diverge_edge_list = get_diverge_node()
-# print(diverge_node_list)
-print("**************")
-for edge in diverge_edge_list:
-    print("edge: {}, diverging with {}".format(edge, diverge_edge_list[edge]))
+"""
+        (8,  {"coord":(11.5,47.2, pi), "pre":[(7,'s')], "next":[(9,'l')], "itsc": False}),
+        (9,  {"coord":(3.9,39.6, -pi/2), "pre":[(8,'l')], "next":[(10,'s')], "itsc": False}),
+        (10,  {"coord":(3.9,10.3,-pi/2), "pre":[(9,'s')], "next":[(1,'l')], "itsc": False}),
+"""
+def get_edge_length(G, edge):
+    return G.get_edge_data(edge)["weight"]
+def build_junction():
+    node_list = get_node_list()
+    edge_list = get_edge_list(node_list)
+    G = build_graph(node_list, edge_list)
+    diverge_node_list, diverge_edge_list = get_diverge_node()
+    merge_node_list, merge_edge_list = get_merge_node()
+    # print(diverge_node_list)
+    print("**************")
+    for edge in diverge_edge_list:
+        print("edge: {}, diverging with {}".format(edge, diverge_edge_list[edge]))
+
+    print("diverge node: ", diverge_node_list)
+    print("merge node: ", merge_node_list)
+
+    SAFE_DISTANCE = 4.5
+    CHECK_DISTANCE = 10.0
+    for merge_node in merge_node_list:
+        for edge in merge_node_list[merge_node]:
+            edge_len = get_edge_length(G, edge)
+            if edge_len < SAFE_DISTANCE +CHECK_DISTANCE:
+                route_len = edge_len
+                route_path = [edge]
+                check_dist = 
+                while route_len
+
+# def trace_route(in_out, node, safe_dist, check_dist, node_list,edge_list,G):
+#     if in_out == "in":
+#         routes = []
+#         for pre_node,_ in node_list[node]["pre"]:
+#             route = []
+#             end 
+#             if get_edge_length((pre_node, node)) <check_dist:
+#                 route+=(pre_node, node)
+#                 route += trace_route(in_out, node, safe_dist, check_dist-get_edge_length((pre_node, node)), node_list,edge_list,G)
+#             else:
+
+        
+
+
+
+# test_junction()
+
+# class junction:
+#     def __init__(self,junction_id, center, merge_edges, diverge_edges):
+#         self.junction_id = junction_id
+#         self.center_xy = center
+#         self.merge_edges = merge_edges
+#         self.diverge_edges = diverge_edges
+#         self.interference_points

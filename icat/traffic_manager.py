@@ -95,8 +95,8 @@ class TrafficManager:
             new = np.array([0.5 * n for n in range(len(self.WptsBuffer[id][i]))])+former_s
             Spath = np.concatenate((Spath, new))
             former_s += self.get_edge_length((self.PathBuffer[id][i],self.PathBuffer[id][i+1] )) 
-            print(" Path edge: {}, number of wpts: {}, edge lengdth: {} ".format((self.PathBuffer[id][i],self.PathBuffer[id][i+1]), 
-                    len(self.WptsBuffer[id][i]),self.get_edge_length((self.PathBuffer[id][i],self.PathBuffer[id][i+1])) ))
+            # print(" Path edge: {}, number of wpts: {}, edge lengdth: {} ".format((self.PathBuffer[id][i],self.PathBuffer[id][i+1]), 
+            #         len(self.WptsBuffer[id][i]),self.get_edge_length((self.PathBuffer[id][i],self.PathBuffer[id][i+1])) ))
         self.Sbuffer[id] = Spath
         # print("updated s path of id: {}, s_path: {}".format(id, self.Sbuffer[id]))
         # print("bisect 78: ", bisect.bisect(self.Sbuffer[id], 79.0))
@@ -136,31 +136,19 @@ class TrafficManager:
         # Make sure no change to path
         in_edge = (-1, -1)
         path = self.PathBuffer[car_id]
-        # print("path: ", path)
-        # print("car state: ",state)
         for n in range(len(path)-1):
             edge_points = self.G.get_edge_data(path[n],path[n+1])["waypoints"]
-            # print("section points: ", edge_points)
             closest_index = find_closest_waypoint(state[0], state[1], edge_points)
             closest_point = edge_points[closest_index]
             s,d = frenet_transform(state[0], state[1], edge_points)
             if s < 0 :
-                # in_edge = (-1, path[n])
                 in_edge = (path[n], path[n+1])
-                # print(" In edge: ", path[n],path[n+1])
                 return s,d, in_edge, closest_index, closest_point
             if s >= 0 and s < self.G.get_edge_data(path[n],path[n+1])["weight"]:
                 in_edge = (path[n], path[n+1])
-                # print(" In edge: ", path[n],path[n+1])
                 return s,d,in_edge, closest_index, closest_point
-            
-            print("the closest index: ", closest_index)
-            print(" print s,d : ", s,d)
+
         if in_edge == (-1,-1):
-            print("Cannot localize error")
-            print("car id , ", id)
-            print("car's path: ", path)
-            print("car state: ", self.StateBuffer[car_id])
             raise ValueError (" Cannot localize to the path !")
       
     def path_pop(self, in_edge, car_id, if_pop_wpts= True):
@@ -177,10 +165,6 @@ class TrafficManager:
                     self.WptsBuffer[car_id] = wpts
                     assert len(self.WptsBuffer[car_id])!=orig_len, "Fail to pop out passed waypoints!"
         else:
-            # print("car id , ", car_id)
-            # print("car's path: ", path)
-            # print("car in edge: ", in_edge)
-            # print("car state: ", self.StateBuffer[car_id])
             raise ValueError (" Edge not in the path, in path state update!")
 
     def get_look_ahead_point(self,clst_index, id):
@@ -196,20 +180,8 @@ class TrafficManager:
         if clst_index + n_ahead_indices >= n1-1:
             ahead_in_edge = (v,w)
             ahead_index = ahead_index - n1
-        # if clst_index+n_ahead_indices > len(ahead_points):
-        #     print("uvw: ", u,v,w  )
-        #     print(" index len: ",clst_index, n_ahead_indices )
-        #     print("ahead points len: ", ahead_points)
         ahead_point = ahead_points[clst_index+n_ahead_indices]
         return ahead_in_edge, ahead_index, ahead_point
-                     
-            
-    """          
-    car_state["current_point"] = (x,y,yaw)
-    car_state["linear_speed"] = v
-    car_state["angular_speed"] = w
-    car_state["ahead_point"] = (x,y,yaw)
-    """    
 
     def state_update(self,car_states):
         sd_coords = []
@@ -357,26 +329,83 @@ class TrafficManager:
         ss = self.StateBuffer[id]["sd"][0]              # current s coord
         vs = self.StateBuffer[id]["linear_speed"]       # current speed assume perfectly on the road direction
         a_s =  0.0
-        se, ve, a_e, minT, maxT, logic = self.calc_acc_end_state(id)
         leading_id, dist = self.DistBuffer[id]
-        print("checking backward: ", id)
-        print(" dist: ", dist, " ID: ", id)
-        print("leading ID: ", leading_id)
-        print("dist checking: ", self.DistBuffer[id])
-        print("EGO state: ", self.StateBuffer[id])
-        print("Leading state: ", self.StateBuffer[leading_id])
-        print("ss: ",ss)
-        print("se: ", se)
-        print("vs: ", vs)
-        print("ve: ", ve)
-        print("logic: ", logic)
+        if leading_id == -1 or dist >= self.check_ahead_dist:
+            se, ve, a_e, minT, maxT, logic = self.calc_velocity_keeping_end_state(id)
+        else:
+            if dist > self.safe_clearance:
+
+                se, ve, a_e, minT, maxT, logic = self.calc_acc_end_state(id)
+            else:
+                se, ve, a_e, minT, maxT, logic = self.calc_brake_end_state(id)
         assert ss <= se, "End point is backward!!!"
         # then we plan a trajectory along s coord
-        Ttime, Ts, Tv, Ta, Tj = quintic_1d_plan(ss, vs, a_s, se,ve, a_e,self.car_info["amax"], self.car_info["jerkmax"],self.dt, minT, maxT)  
+        try:
+            Ttime, Ts, Tv, Ta, Tj = quintic_1d_plan(ss, vs, a_s, se,ve, a_e,self.car_info["amax"], self.car_info["jerkmax"],self.dt, minT, maxT)  
+        except AssertionError:
+            # se, ve, a_e, minT, maxT, logic = self.calc_brake_end_state(id)
+            # Ttime, Ts, Tv, Ta, Tj = quintic_1d_plan(ss, vs, a_s, se,ve, a_e,self.car_info["amax"], self.car_info["jerkmax"],self.dt, minT, maxT)
+            print("Assertion Error!! Trying Brake Traj Planning!!!")
+            Ttime,Ts,Tv,Ta,Tj = self.plan_brake_traj(id)  
         Traj= self.calc_traj_from_s(id,Ts,Tv)
         self.TrajBuffer[id] = Traj
 
+    def plan_brake_traj(self, id):
+        ss = self.StateBuffer[id]["sd"][0]              # current s coord
+        vs = self.StateBuffer[id]["linear_speed"]       # current speed assume perfectly on the road direction   
+        a_brake = self.car_info["amax"]
+        T = int(vs/a_brake/self.dt)+1
+        Ttime, Ts, Tv, Ta, Tj = [0.],[ss],[vs],[a_brake],[0.]
+        s = ss
+        v = vs
+        for i in range(T):
+            v = max(0, v-a_brake*self.dt)
+            s += v*self.dt   
+            Ttime.append(i*self.dt)
+            Ts.append(s)
+            Tv.append(v)
+            Ta.append(a_brake)
+            Tj.append(0)
+        return Ttime, Ts, Tv, Ta, Tj
+                 
+    def calc_brake_end_state(self, id):
+        a_brake = self.car_info["amax"]
+        v = self.StateBuffer[id]["linear_speed"]
+        t = max(v/a_brake,self.dt)
+        ds = max(v*(t+self.dt) - 0.5*a_brake*t**2,0.0)
+        se = self.FrenetBuffer[id][0] + ds
+        ve = 0.
+        a_e = 0.
+        minT = max(t-2*self.dt, self.dt)
+        maxT = t+5*self.dt
+        print("*********** Emergency Brake! *************")
+        logic = "brake"
+        return se, ve, a_e, minT, maxT, logic
+
+    def calc_velocity_keeping_end_state(self, id):
+        se = self.FrenetBuffer[id][0] + self.check_ahead_dist
+        ve = self.constant_speed # desired speed
+        a_e = 0.0
+        minT = self.check_ahead_dist / (1.2 * self.constant_speed) # overspeed no more than 20%
+        maxT = self.check_ahead_dist / (self.constant_speed/2)
+        logic = "too far"
+        return se, ve, a_e, minT, maxT, logic
+    
+    def calc_acc_end_state(self,id):
+        TAU = 0.2
+        leading_id, dist = self.DistBuffer[id]
+        leading_v = self.StateBuffer[leading_id]["linear_speed"]
+        se = self.FrenetBuffer[id][0] + max((dist + TAU* leading_v - self.safe_clearance ),0.)
+        ve = 0.0 # ensure a full stop at the tracking end point
+        a_e = 0.0 # stop smoothly
+        minT = dist /(1.2 * self.constant_speed) # relax a little
+        maxT = dist / (self.constant_speed/4)    # enlarge the time area for stable search
+        logic = "following"  
+        return se, ve, a_e, minT, maxT, logic      
+    
+
     def calc_traj_from_s(self, id, Ts, Tv):
+        assert len(Ts) >=2, "Ts length smaller than 2!!"
         Txyyaw = []
         Traj = []
         # print("ID: ",id , " ***************")
@@ -389,13 +418,13 @@ class TrafficManager:
                 break
             index = bisect.bisect(self.Sbuffer[id],Ts[i])-1
             ds = Ts[i] - self.Sbuffer[id][index]
-            print("bigger than s checking")
-            print("Car ID: {}, bisect index {}, Ts {}, Sbuffer[id][index] {}, self.LocalWptsBuffer[id]{}".format(id,index, Ts, self.Sbuffer[id][index],self.LocalWptsBuffer[id] ))
+            # print("Car ID: {}, bisect index {}, Ts {}, Sbuffer[id][index] {}, self.LocalWptsBuffer[id]{}".format(id,index, Ts, self.Sbuffer[id][index],self.LocalWptsBuffer[id] ))
             assert ds >= 0, "index value bigger than s_value!"
             px, py, yaw = self.LocalWptsBuffer[id][index]
             x = px + ds*cos(yaw)
             y = py + ds*sin(yaw)
             Txyyaw.append((x,y,yaw))
+        
         for k in range(len(Txyyaw)-1):
             x, y, yaw = Txyyaw[k]
             yaw_next = Txyyaw[k+1][2]
@@ -408,58 +437,6 @@ class TrafficManager:
         return np.array(Traj)
 
 
-
-    def calc_acc_end_state(self, id):
-        TAU = 0.2 # a parameter to tune headway increment with leading car speed increasing,
-        leading_id, dist = self.DistBuffer[id]
-        # no leading cars in the current and the next section or far way
-        if leading_id == -1 or dist >= self.check_ahead_dist: 
-            se = self.FrenetBuffer[id][0] + self.check_ahead_dist
-            ve = self.constant_speed # desired speed
-            a_e = 0.0
-            minT = self.check_ahead_dist / (1.2 * self.constant_speed) # overspeed no more than 20%
-            maxT = self.check_ahead_dist / (self.constant_speed/2)
-            logic = "too far"
-        else:
-            if dist > self.safe_clearance:
-                # There is a leading car, do Adaptive Cruise Control logic
-                # starget(t) := slv(t) − [D0 + τ s˙lv(t)], from the paper Optimal Trajectory Generation for Dynamic Street Scenarios in a Frene´t Frame
-                # safe clearance, if lv = 0, 1m, lv=5,2m  end speed should be 0 m/s to assure a full stop
-                leading_v = self.StateBuffer[leading_id]["linear_speed"]
-                print("ego position: ", self.StateBuffer[id]["sd"])
-                print(" leading car position: ", self.FrenetBuffer[id][0] + dist)
-                # print(" leading car pose get: ", self.StateBuffer[leading_id]['sd'])
-                se = self.FrenetBuffer[id][0] + max((dist + TAU* leading_v - self.safe_clearance ),0.)
-                ve = 0.0 # ensure a full stop at the tracking end point
-                a_e = 0.0 # stop smoothly
-                minT = dist /(1.2 * self.constant_speed) # relax a little
-                maxT = dist / (self.constant_speed/4)    # enlarge the time area for stable search
-                logic = "following"
-            else: # emergency brake!
-                a_brake = self.car_info["amax"]
-                v = self.StateBuffer[id]["linear_speed"]
-                t = max(v/a_brake,self.dt)
-                ds = max(v*(t+self.dt) - 0.5*a_brake*t**2,0.0)
-                se = self.FrenetBuffer[id][0] + ds
-                ve = 0.
-                a_e = 0.
-                minT = max(t-2*self.dt, self.dt)
-                maxT = t+5*self.dt
-                print("*********** Emergency Brake! *************")
-                print(" dist: ", dist, " ID: ", id)
-                print("leading ID: ", leading_id)
-                print("dist checking: ", self.DistBuffer[id])
-                print("EGO state: ", self.StateBuffer[id])
-                print("Leading state: ", self.StateBuffer[leading_id])
-                print("v: {}, a: {}, t: {}, ds: {}".format(v,a_brake,t,ds))
-                print("a_brake: ", a_brake)
-                logic = "brake"
-                
-        return se, ve, a_e, minT, maxT, logic
-
-
-
-
     # def check_merge_edge(edge):
     #     if edge in self.EdgeOccupancy:
     #         id,s,d = self.EdgeOccupancy[edge][-1]
@@ -467,48 +444,7 @@ class TrafficManager:
     #     else:
     #         return -1, 0.
 
-    # def plan_car_following(self, id):
-    #     leading_id = self.DistBuffer[id][0]
-    #     ego_v = self.StateBuffer[id]["linear_speed"]
-    #     leading_v = self.StateBuffer[leading_id]["linear_speed"]
-    #     desired_v = ego_v
-    #     """
-    #     This is car following logic.
-    #     """
-    #     if leading_id == -1:
-    #         desired_v = self.constant_speed
-    #     else:
-    #         d = self.DistBuffer[id][1]
-    #         if d <= self.safe_clearance + self.car_info["hl"]*2:
-    #             desired_v = 0.0
-    #         else:                               
-    #             total_dist = d - self.safe_clearance + self.car_info["hl"]*2
-    #             acc_speed = total_dist + self.head_time * (leading_v - ego_v) /self.head_time
-    #             desired_v = max(acc_speed, self.constant_speed)
-    #     current_point = self.StateBuffer[id]["current_point"]
-    #     looking_point = self.StateBuffer[id]["ahead_point"]
-    #     s,d = self.StateBuffer[id]["sd"]
-    #     return current_point, looking_point, s,d, ego_v , desired_v 
 
-
-    # def excute_plan(self, plan):
-    #     """ Pure pursuit Controller """
-    #     Kp = 0.45
-    #     current_point, looking_point,s,d, ego_v, disired_v = plan
-    #     a = disired_v - ego_v
-    #     if a >= 0:
-    #         a = min(a, self.car_info["amax"])
-    #     if a < 0:
-    #         a = max(a, self.car_info["amin"])
-    #     planned_v = ego_v+a
-    #     looking_yaw = looking_point[2]
-    #     ego_yaw = current_point[2]
-    #     dangle1 = 0 - d
-    #     dangle2 = self.to_pi(looking_yaw - ego_yaw)
-    #     # print("following yaw: ", round(looking_yaw,3), "  ego yaw: ", round(ego_yaw,3))
-    #     # print(" ******* in Control", round(dangle1,3), round(dangle2,3))
-    #     planned_w = Kp*(dangle1+dangle2)
-    #     return planned_v, planned_w
 
     def trajectory_update(self):
         for id in range(self.n_car):
@@ -533,13 +469,13 @@ class TrafficManager:
 
     def get_traj_buffer(self):
         return self.TrajBuffer.copy()        
-
-
     def pos_pi(self,angle):
+        # make angle positive
         if angle < 0:
             angle += 2*pi
         return angle
     def to_pi(self, angle):
+        # covert angle from -pi to pi
         if angle <= -pi:
             angle += 2*pi
         elif angle > pi:
@@ -548,7 +484,7 @@ class TrafficManager:
 
 
 WAYPOINT_DISTANCE = 0.5
-N_CAR = 5
+N_CAR = 20
 N_NODE = 42
 CAR_PARAM = get_car_param()
 CAR_INFO = {"hl":1.775, "hw": 1.0, "amax":3.0, "amin":-3.0, "jerkmax": 10.0} # half length, half width of the car
@@ -698,4 +634,3 @@ for n_loop in range(N_LOOP):
 
     
     
-

@@ -227,8 +227,8 @@ def quintic_1d_plan(sx, sv, sa, gx,gv, ga, max_accel, max_jerk, dt, minT, maxT):
         if max([abs(i) for i in ra]) <= max_accel and max([abs(i) for i in rj]) <= max_jerk and min(rv)>=0. and min(ds_list) >=0.:
             # print("This path is not dynamically feasible!!")
             break
-    print("Ts: ", rs)
-    print("ds list: ", ds_list)
+    # print("Ts: ", rs)
+    # print("ds list: ", ds_list)
     assert len(time) > 0 and min(ds_list)>=0., "Not found feasible solution, check planning method!"
     return time, rs, rv, ra, rj
 
