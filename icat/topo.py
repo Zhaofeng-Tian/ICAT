@@ -165,6 +165,16 @@ def get_straight_waypoints(u_coord, v_coord, distance=WAYPOINT_DISTANCE):
 #     waypoints = [(round(x,3),round(y,3)) for x,y in waypoints]
 #     return waypoints, d
 
+
+def get_points_from_nodes(node_list):
+    pts = []
+    for i, node in enumerate(node_list):
+        x,y,_ = node[1]["coord"]
+        pts.append(np.array([x,y]))
+    return np.array(pts)
+
+
+
 def calculate_yaw(p1, p2):
     return np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
 
@@ -490,30 +500,30 @@ def get_diverge_node():
 """
 def get_edge_length(G, edge):
     return G.get_edge_data(edge)["weight"]
-def build_junction():
-    node_list = get_node_list()
-    edge_list = get_edge_list(node_list)
-    G = build_graph(node_list, edge_list)
-    diverge_node_list, diverge_edge_list = get_diverge_node()
-    merge_node_list, merge_edge_list = get_merge_node()
-    # print(diverge_node_list)
-    print("**************")
-    for edge in diverge_edge_list:
-        print("edge: {}, diverging with {}".format(edge, diverge_edge_list[edge]))
+# def build_junction():
+#     node_list = get_node_list()
+#     edge_list = get_edge_list(node_list)
+#     G = build_graph(node_list, edge_list)
+#     diverge_node_list, diverge_edge_list = get_diverge_node()
+#     merge_node_list, merge_edge_list = get_merge_node()
+#     # print(diverge_node_list)
+#     print("**************")
+#     for edge in diverge_edge_list:
+#         print("edge: {}, diverging with {}".format(edge, diverge_edge_list[edge]))
 
-    print("diverge node: ", diverge_node_list)
-    print("merge node: ", merge_node_list)
+#     print("diverge node: ", diverge_node_list)
+#     print("merge node: ", merge_node_list)
 
-    SAFE_DISTANCE = 4.5
-    CHECK_DISTANCE = 10.0
-    for merge_node in merge_node_list:
-        for edge in merge_node_list[merge_node]:
-            edge_len = get_edge_length(G, edge)
-            if edge_len < SAFE_DISTANCE +CHECK_DISTANCE:
-                route_len = edge_len
-                route_path = [edge]
-                check_dist = 
-                while route_len
+#     SAFE_DISTANCE = 4.5
+#     CHECK_DISTANCE = 10.0
+#     for merge_node in merge_node_list:
+#         for edge in merge_node_list[merge_node]:
+#             edge_len = get_edge_length(G, edge)
+#             if edge_len < SAFE_DISTANCE +CHECK_DISTANCE:
+#                 route_len = edge_len
+#                 route_path = [edge]
+#                 check_dist = 
+#                 while route_len
 
 # def trace_route(in_out, node, safe_dist, check_dist, node_list,edge_list,G):
 #     if in_out == "in":

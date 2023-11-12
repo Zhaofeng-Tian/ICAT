@@ -630,7 +630,11 @@ for n_loop in range(N_LOOP):
     car_states=[]
     Tbuffer = TM.get_traj_buffer()
     for id in range(N_CAR):
+        print(" Tbuffer[id]: ", len(Tbuffer[id]))
         car_states.append(Tbuffer[id][1])
 
-    
+    for id in range(N_CAR):
+        cmd = MPC(cars[id].state, Tbuffer[id])
+        cars[i].state_update(cmd)
+        
     
