@@ -95,7 +95,7 @@ def get_node_list():
 
 
 
-def get_edge_list(node_list):
+def get_edge_list(node_list, interval = 0.5):
     edge_list = []
     for node_id, att in node_list:
         # print(' ')
@@ -104,22 +104,22 @@ def get_edge_list(node_list):
         for next_node, behavior in att['next']:
             next_coord = node_list[next_node-1][1]["coord"][:2]
             # print(" ------->"," next node: " ,next_node, " behavior: ", behavior, "next  coord: ",next_coord)
-            edge = build_edge(node_id, next_node, coord, next_coord, behavior)
+            edge = build_edge(node_id, next_node, coord, next_coord, behavior, interval = interval)
             n_points = len(edge[2]["waypoints"])
             edge[2]["n_points"] = n_points
             edge_list.append(edge)
     return edge_list
 
-def build_edge(u,v,u_coord,v_coord, behavior):
+def build_edge(u,v,u_coord,v_coord, behavior,interval = 0.5):
     ux, uy = u_coord
     vx, vy = v_coord
     if behavior == 's':
         # go straight
-        waypoints, d = get_straight_waypoints(u_coord, v_coord, distance = WAYPOINT_DISTANCE)
+        waypoints, d = get_straight_waypoints(u_coord, v_coord, distance = interval)
     elif behavior == 'r':
-        waypoints, d = get_curve_waypoints(u_coord, v_coord, 'r', distance= WAYPOINT_DISTANCE)
+        waypoints, d = get_curve_waypoints(u_coord, v_coord, 'r', distance= interval)
     elif behavior == 'l':
-        waypoints, d = get_curve_waypoints(u_coord, v_coord, 'l', distance= WAYPOINT_DISTANCE)
+        waypoints, d = get_curve_waypoints(u_coord, v_coord, 'l', distance= interval)
         
     edge = (u,v,{"weight": d,"behavior":behavior, "waypoints":waypoints})
     return edge
@@ -168,12 +168,21 @@ def get_straight_waypoints(u_coord, v_coord, distance=WAYPOINT_DISTANCE):
 
 def get_points_from_nodes(node_list):
     pts = []
+    angle = []
     for i, node in enumerate(node_list):
-        x,y,_ = node[1]["coord"]
+        x,y,theta = node[1]["coord"]
         pts.append(np.array([x,y]))
-    return np.array(pts)
+        angle.append(np.array(theta))
+    return np.array(pts), np.array(angle)
 
-
+def get_points_from_edges(edge_list):
+    pts = []
+    theta = []
+    for i, edge in enumerate(edge_list):
+        for point in  edge[2]["waypoints"]:
+            pts.append(np.array([point[0], point[1]]))
+            theta.append(point[2])
+    return np.array(pts), np.array(theta)
 
 def calculate_yaw(p1, p2):
     return np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
@@ -500,52 +509,3 @@ def get_diverge_node():
 """
 def get_edge_length(G, edge):
     return G.get_edge_data(edge)["weight"]
-# def build_junction():
-#     node_list = get_node_list()
-#     edge_list = get_edge_list(node_list)
-#     G = build_graph(node_list, edge_list)
-#     diverge_node_list, diverge_edge_list = get_diverge_node()
-#     merge_node_list, merge_edge_list = get_merge_node()
-#     # print(diverge_node_list)
-#     print("**************")
-#     for edge in diverge_edge_list:
-#         print("edge: {}, diverging with {}".format(edge, diverge_edge_list[edge]))
-
-#     print("diverge node: ", diverge_node_list)
-#     print("merge node: ", merge_node_list)
-
-#     SAFE_DISTANCE = 4.5
-#     CHECK_DISTANCE = 10.0
-#     for merge_node in merge_node_list:
-#         for edge in merge_node_list[merge_node]:
-#             edge_len = get_edge_length(G, edge)
-#             if edge_len < SAFE_DISTANCE +CHECK_DISTANCE:
-#                 route_len = edge_len
-#                 route_path = [edge]
-#                 check_dist = 
-#                 while route_len
-
-# def trace_route(in_out, node, safe_dist, check_dist, node_list,edge_list,G):
-#     if in_out == "in":
-#         routes = []
-#         for pre_node,_ in node_list[node]["pre"]:
-#             route = []
-#             end 
-#             if get_edge_length((pre_node, node)) <check_dist:
-#                 route+=(pre_node, node)
-#                 route += trace_route(in_out, node, safe_dist, check_dist-get_edge_length((pre_node, node)), node_list,edge_list,G)
-#             else:
-
-        
-
-
-
-# test_junction()
-
-# class junction:
-#     def __init__(self,junction_id, center, merge_edges, diverge_edges):
-#         self.junction_id = junction_id
-#         self.center_xy = center
-#         self.merge_edges = merge_edges
-#         self.diverge_edges = diverge_edges
-#         self.interference_points

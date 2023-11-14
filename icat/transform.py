@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 from topo import *
 from nav_gym.obj.geometry.util import topi
 # Define the points
+
+
+# ICAT real size 5.22 m * 5.78 m
 ndt_pts = np.array([
     (5.13, 2.480),
     (3.55, 0.19),
@@ -32,10 +35,10 @@ icat_centered = icat_pts - icat_pts[-1]
 
 import numpy as np
 
-def calc_inverse_transformed_points(icat_pts, scaling_factor, theta, dx, dy):
+def calc_inverse_transformed_points(icat_pts, scaling_factor, theta, dx, dy, rotation_center):
     # Inverse Translation
     translated_points = icat_pts - np.array([dx, dy])
-
+    rotation_center = rotation_center  - np.array([dx,dy])
     # Creating Inverse Rotation Matrix
     inv_rotation_matrix = np.array([
                                     [np.cos(-theta), -np.sin(-theta)],
@@ -43,13 +46,13 @@ def calc_inverse_transformed_points(icat_pts, scaling_factor, theta, dx, dy):
                                   ])
 
     # Adjusting for the original last point translation
-    rotated_points = translated_points - translated_points[-1]
+    rotated_points = translated_points - rotation_center
     
     # Inverse Rotation
     rotated_points = np.dot(rotated_points, inv_rotation_matrix)
     
     # Revert the adjustment for the original last point translation
-    rotated_points = rotated_points + translated_points[-1]
+    rotated_points = rotated_points + rotation_center
 
     # Inverse Scaling
     final_pts = rotated_points / scaling_factor
@@ -78,11 +81,12 @@ def calc_tranformed_points(ndt_pts, scaling_factor, theta, dx,dy):
 
 def get_transformed_nodes():
     # scaling_factor, theta, dx, dy = best_param
-    scaling_factor, theta, dx, dy = (10.193, 3.18, 2.0, 8.0)
+    # scaling_factor, theta, dx, dy = (10.193, 3.18, 2.0, 8.0)
+    scaling_factor, theta, dx, dy = (10.0, 3.145, 2.0, 8.0)
     # scaling_factor, theta, dx, dy = (10.1, 3.17, 2.0, 8.0)
     # scaling_factor, theta, dx, dy = (10.0, 3.20, 0.0, 10.0)
     final_pts = calc_tranformed_points(ndt_pts, scaling_factor, theta, dx,dy)
-    inverse_pts = calc_inverse_transformed_points(icat_pts, scaling_factor, theta, dx,dy)
+    inverse_pts = calc_inverse_transformed_points(icat_pts, scaling_factor, theta, dx,dy, icat_pts[-1])
 
     node_list = get_node_list()
     edge_list = get_edge_list(node_list=node_list)
@@ -90,10 +94,10 @@ def get_transformed_nodes():
     node_pts = []
     for node in node_list:
         node_pts.append(np.array(node[1]["coord"][:2]))
-    node_pts.append(np.array([30, 25.4]))
+    # node_pts.append(np.array([30, 25.4]))
     node_pts = np.array(node_pts)
     print("node_pts: ", node_pts)
-    transformed_pts = calc_inverse_transformed_points(node_pts,scaling_factor, theta, dx,dy)
+    transformed_pts = calc_inverse_transformed_points(node_pts,scaling_factor, theta, dx,dy, rotation_center = np.array([30, 25.4]))
     dx, dy = transformed_pts[1] - transformed_pts[0]
     theta = atan2(dy,dx)
     print(" node 1 and 2 yaw angle: ", theta)
@@ -109,20 +113,46 @@ def get_transformed_nodes():
     print("node list: ", node_list)
     return node_list
 
-
-
+# scaling_factor, theta, dx, dy = (10.193, 3.18, 2.0, 8.0)
+scaling_factor, theta, dx, dy = (10.193, 2.7, 2.0, 8.0)
+node_list = get_node_list()
+edge_list = get_edge_list(node_list=node_list)
 transformed_nodes = get_transformed_nodes()
-transformed_pts = get_points_from_nodes(transformed_nodes)
-fig,ax = plt.subplots()
-# print(rotated_points)
-# Plotting the points
-# plt.figure(figsize=(10, 8))
-# plt.scatter(icat_pts[:, 0], icat_pts[:, 1], color='red', label='Target ICAT Points')
+print("transformed_nodes: ", transformed_nodes)
 
-# plt.scatter(ndt_pts[:, 0], ndt_pts[:, 1], color='blue', label='Original NDT Points')
-# plt.scatter(inverse_pts[:, 0], inverse_pts[:, 1], color='red', label='inverse ICAT Points')
-# plt.scatter(final_pts[:, 0], final_pts[:, 1], color='green', label='Rotated NDT Points')
+icat_edge_list = get_edge_list(transformed_nodes, interval= 0.05)
+print("icat edge list: ", icat_edge_list)
+# save_edges('/home/tian/icat_edges.json', icat_edge_list)
+
+# save_edges('/home/tian/icat_nodes.json', transformed_nodes)
+
+transformed_pts, _ = get_points_from_nodes(transformed_nodes)
+
+edge_pts, angles = get_points_from_edges(edge_list)
+assert len(edge_pts) == len(angles), "leng not equal"
+
+transformed_edge_pts = calc_inverse_transformed_points(edge_pts,scaling_factor, theta, dx,dy, rotation_center = np.array([30, 25.4]))
+for i in range(len(angles)):
+    angles[i] = topi(angles[i]+theta)
+
+
+
+fig,ax = plt.subplots()
+
 plt.scatter(transformed_pts[:, 0], transformed_pts[:, 1], color='pink', label='Rotated NDT Points')
+
+transformed_edge_pts, angles = get_points_from_edges(icat_edge_list)
+# plt.scatter(transformed_edge_pts[:, 0], transformed_edge_pts[:, 1], color='red', label='Rotated edge Points')
+
+recorded_points = np.load('/home/tian/track_points.npy')
+recorded_points = recorded_points[:int(len(recorded_points)/2)]
+print(" ******** recorded points *******************")
+print(len(recorded_points))
+# print()
+plt.scatter(recorded_points[:, 0], recorded_points[:, 1], color='red', label='Recoreded Points')
+
+for i in range(len(transformed_edge_pts)):
+    plt.arrow(transformed_edge_pts[:, 0][i], transformed_edge_pts[:, 1][i],0.05*cos(angles[i]), 0.05*sin(angles[i]))
 # img = load_img('icat.png')
 # plt.imshow(img, origin='lower', extent=[0, 60, 0, 50])  # The extent parameter sets the axis limits and 'origin' is now set to 'lower'.
 # plt.imshow(img, extent=[0, 60, 0, 50])
@@ -140,8 +170,3 @@ for node_id, data in enumerate(transformed_pts[:-1]):
 
 # Show the plot
 plt.show()
-
-
-
-
-
