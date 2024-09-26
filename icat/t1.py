@@ -40,7 +40,7 @@ print("icat_pts: ", icat_pts )
 
 import numpy as np
 
-def calc_inverse_transformed_points(icat_pts, scaling_factor, theta, dx, dy, rotation_center):
+def calc_inverse_transformed_points(icat_pts, scaling_factor, theta, dx, dy, rotation_center, offset):
     # Inverse Translation
     translated_points = icat_pts - np.array([dx, dy])
     rotation_center = rotation_center  - np.array([dx,dy])
@@ -61,7 +61,9 @@ def calc_inverse_transformed_points(icat_pts, scaling_factor, theta, dx, dy, rot
 
     # Inverse Scaling
     final_pts = rotated_points / scaling_factor
-    final_pts += np.array([0.08, 0.07])
+
+    final_pts += offset
+
 
     return final_pts
     # return translated_points
@@ -81,16 +83,16 @@ def calc_tranformed_points(ndt_pts, scaling_factor, theta, dx,dy):
     return final_pts
 
 
-def get_transformed_nodes():
+def get_transformed_nodes(node_list , transformation, offset):
     # scaling_factor, theta, dx, dy = best_param
     # scaling_factor, theta, dx, dy = (10.193, 3.18, 2.0, 8.0)
-    scaling_factor, theta, dx, dy = (10.0, 3.145, 2.0, 8.0)
+    scaling_factor, theta, dx, dy = transformation
     # scaling_factor, theta, dx, dy = (10.1, 3.17, 2.0, 8.0)
     # scaling_factor, theta, dx, dy = (10.0, 3.20, 0.0, 10.0)
     final_pts = calc_tranformed_points(ndt_pts, scaling_factor, theta, dx,dy)
-    inverse_pts = calc_inverse_transformed_points(icat_pts, scaling_factor, theta, dx,dy, icat_pts[-1])
+    inverse_pts = calc_inverse_transformed_points(icat_pts, scaling_factor, theta, dx,dy, icat_pts[-1], offset)
 
-    node_list = get_node_list()
+    node_list = node_list.copy()
     edge_list = get_edge_list(node_list=node_list)
 
     node_pts = []
@@ -99,7 +101,7 @@ def get_transformed_nodes():
     # node_pts.append(np.array([30, 25.4]))
     node_pts = np.array(node_pts)
     print("node_pts: ", node_pts)
-    transformed_pts = calc_inverse_transformed_points(node_pts,scaling_factor, theta, dx,dy, rotation_center = np.array([30, 25.4]))
+    transformed_pts = calc_inverse_transformed_points(node_pts,scaling_factor, theta, dx,dy, rotation_center = icat_pts[-1], offset=offset)
     dx, dy = transformed_pts[1] - transformed_pts[0]
     theta = atan2(dy,dx)
     print(" node 1 and 2 yaw angle: ", theta)
@@ -115,35 +117,40 @@ def get_transformed_nodes():
     print("node list: ", node_list)
     return node_list
 
+
+
+
+
+
 # scaling_factor, theta, dx, dy = (10.193, 3.18, 2.0, 8.0)
-scaling_factor, theta, dx, dy = (10.193, 2.7, 2.0, 8.0)
-node_list = get_node_list()
-edge_list = get_edge_list(node_list=node_list)
-transformed_nodes = get_transformed_nodes()
+T = (10.00, 3.140, 2.0, 8.0)
+icat_offset = np.array([0.18,-0.15])
+icat_offset = np.array([0.18,-0.15]) + np.array([0. , + 0.2])
+scaling_factor, theta, dx, dy = T
+
+node_list = get_tuned_node_list()
+
+
+transformed_nodes = get_transformed_nodes(node_list=node_list, transformation=T, offset= icat_offset)
 # print("transformed_nodes: ", transformed_nodes)
 
 icat_edge_list = get_edge_list(transformed_nodes, interval= 0.05)
 # print("icat edge list: ", icat_edge_list)
-# save_edges('/home/tian/icat_edges.json', icat_edge_list)
 
-# save_edges('/home/tian/icat_nodes.json', transformed_nodes)
+# **************** Save Edges and Nodes ***************************
+save_edges('/home/tian/icat_edges.json', icat_edge_list)
+
+save_edges('/home/tian/icat_nodes.json', transformed_nodes)
 
 transformed_pts, _ = get_points_from_nodes(transformed_nodes)
-
-edge_pts, angles = get_points_from_edges(edge_list)
-assert len(edge_pts) == len(angles), "leng not equal"
-
-transformed_edge_pts = calc_inverse_transformed_points(edge_pts,scaling_factor, theta, dx,dy, rotation_center = np.array([30, 25.4]))
-for i in range(len(angles)):
-    angles[i] = topi(angles[i]+theta)
-
+transformed_edge_pts, angles = get_points_from_edges(icat_edge_list)
 
 
 fig,ax = plt.subplots()
 
 plt.scatter(transformed_pts[:, 0], transformed_pts[:, 1], color='pink', label='Rotated NDT Points')
 
-transformed_edge_pts, angles = get_points_from_edges(icat_edge_list)
+
 # plt.scatter(transformed_edge_pts[:, 0], transformed_edge_pts[:, 1], color='red', label='Rotated edge Points')
 
 recorded_points = np.load('/home/tian/track_points.npy')
@@ -202,7 +209,7 @@ plt.axis('equal')  # Equal scaling on both axes for correct aspect ratio
 
 for node_id, data in enumerate(transformed_pts[:-1]):
     x,y = data
-    ax.text(x, y, str(node_id), ha='center', va='center', color='white')
+    ax.text(x, y, str(node_id), ha='center', va='center', color='orange')
 
 # Show the plot
 plt.show()

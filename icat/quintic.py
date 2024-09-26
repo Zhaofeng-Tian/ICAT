@@ -212,6 +212,7 @@ def quintic_plan(sx, sy, syaw, sv, sa, gx, gy, gyaw, gv, ga, max_accel, max_jerk
     return time, rx, ry, ryaw, rv, ra, rj
 
 def quintic_1d_plan(sx, sv, sa, gx,gv, ga, max_accel, max_jerk, dt, minT, maxT):
+    assert sx <= gx, "Start position should be greater than goal position!"
     for T in np.arange(minT,maxT+dt, dt):
         # print(" Loop in time step: ", T)
         qp = QuinticPolynomial(sx, sv, sa, gx, gv, ga, T)

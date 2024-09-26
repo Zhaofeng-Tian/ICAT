@@ -6,7 +6,8 @@ from math import pi
 import json
 from bezier import *
 from matplotlib.patches import Circle, Arrow
-from nav_gym.map.util import load_img
+
+
 
 
 # G = nx.DiGraph()
@@ -92,6 +93,16 @@ def get_node_list():
     ]
     return node_list
 
+# ICAT real size 5.22 m * 5.78 m
+def get_tuned_node_list():
+ 
+    node_list = get_node_list()
+    for node in node_list:
+        x, y, yaw = node[1]["coord"]
+        node[1]["coord"] = (x*5.78/6, y*5.22/5,yaw)
+        # node[1]["coord"][0] = node[1]["coord"][0]
+        # node[1]["coord"][1] = node[1]["coord"][1]
+    return node_list
 
 
 
@@ -190,10 +201,10 @@ def calculate_yaw(p1, p2):
 def get_curve_waypoints(u, v, b, distance):
     ux, uy = u; vx, vy = v
     dx = vx-ux; dy = vy-uy
-    points = calculate_control_points(u, v, dx, dy, b)  # two control points between u, v
+    points = calculate_control_points(u, v, dx=dx, dy=dy, b=b)  # two control points between u, v
 
     t_values = np.linspace(0, 1, 1000)
-    curve_points = [bezier_curve(*points, t) for t in t_values]
+    curve_points = [bezier_curve(*points, t=t) for t in t_values]
 
     # Sample the curve to get waypoints
     waypoints = sample_waypoints(curve_points, distance)
@@ -387,7 +398,7 @@ def find_closest_waypoint( x, y, waypoints):
 
     return closest_index
     
-def frenet_transform(x, y, waypoints):
+def frenet_transform(x, y, waypoints, wpt_dist):
     closest_idx = find_closest_waypoint(x, y, waypoints)
     wx, wy, wyaw = waypoints[closest_idx]
 
@@ -401,7 +412,7 @@ def frenet_transform(x, y, waypoints):
 
     # Project onto the direction vector (for s)
     s_proj = dx_car * dx_path + dy_car * dy_path
-    s = closest_idx * 0.5 + s_proj
+    s = closest_idx * wpt_dist + s_proj
 
     # Project onto the normal of the direction vector (for d)
     dx_norm = -dy_path

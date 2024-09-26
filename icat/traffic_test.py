@@ -1,34 +1,20 @@
-#!/usr/bin/env python3
-# encoding: utf-8
-
-import numpy as np
-import networkx as nx
-import random
-from topo import *
-from car import build_car,get_car_param
-from math import pi, sin, cos, atan2
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
-import bisect
-from quintic import quintic_1d_plan
-from plot import *
-from traffic_manager import TrafficManager
+from car import *
+from traffic_manager import *
 
 
-WAYPOINT_DISTANCE = 0.05
-N_CAR = 2
+
+WAYPOINT_DISTANCE = 0.5
+N_CAR = 20
 N_NODE = 42
 CAR_PARAM = get_car_param()
-CAR_INFO = {"hl":0.1775, "hw": 0.10, "amax":0.3, "amin":-0.3, "jerkmax": 1.0} # half length, half width of the car
+CAR_INFO = {"hl":1.775, "hw": 1.0, "amax":3.0, "amin":-3.0, "jerkmax": 10.0} # half length, half width of the car
 DT = 0.1
-N_LOOP = 10000
+N_LOOP = 1000
 
 car_length = CAR_INFO["hl"]*2
 car_width = CAR_INFO["hw"]*2
-# node_list = get_tuned_node_list()
-# edge_list = get_edge_list(node_list)
-node_list = load_edges('/home/tian/icat_nodes.json')
-edge_list = load_edges('/home/tian/icat_edges.json')
+node_list = get_node_list()
+edge_list = get_edge_list(node_list)
 G = build_graph(node_list, edge_list)
 node_arr = [i for i in range(1, N_NODE+1)]
 # Sample nodes for start and goal
@@ -40,7 +26,7 @@ goal_nodes = nodes[N_CAR:]
 start_nodes[0] = 16
 goal_nodes[0] = 4
 start_nodes[1] = 15
-goal_nodes[1] = 20
+goal_nodes[1] = 4
 # start_nodes = [21, 37, 28, 7, 39]
 # goal_nodes = [19, 5, 4, 18, 36]
 # Initalize Cars
@@ -65,7 +51,20 @@ for i in range(N_CAR):
     path_buffer.append(path)
  
 fig,ax = plt.subplots()
+# plt.imshow(img, extent=[0, 60, 0, 50]) 
+# Setting the x and y limits for the axes
+plt.xlim(0, 60)
+plt.ylim(0, 50)
+# view_topo(ax, node_list, edge_list, if_arrow=False)
+# plt.show()
 
+# point = patches.PathPatch(
+#     path=patches.Path([(-0.5, 0.5), (0.5, -0.5), (0, 0), (-0.5, -0.5), (0.5, 0.5)]),
+#     facecolor='red',
+#     lw=2,
+#     edgecolor='black',
+# )
+# ax.add_patch(point)
 
 
 car_patches = [Rectangle((cars[i].state[0], cars[i].state[1]), CAR_INFO["hl"]*2, CAR_INFO["hw"]*2, fc='y') for i in range(N_CAR)]
@@ -86,11 +85,23 @@ for i in range(N_CAR):
 TM = TrafficManager(node_list=node_list, edge_list=edge_list, G = G, n_car = N_CAR,
                     car_states=car_states, car_info = CAR_INFO, start_nodes=start_nodes, goal_nodes=goal_nodes,
                     wpts_dist=WAYPOINT_DISTANCE)
+# # 
+# for edge_wpts in TM.WptsBuffer[0]:
+#     print("edge_wpts: ", edge_wpts)
+# print(" car[0] state: ",cars[0].state)
+# edge_wpts = [(21.0, 43.25, 0.0), (21.5, 43.25, 0.0), (22.0, 43.25, 0.0), (22.5, 43.25, 0.0), (23.0, 43.25, 0.0), (23.5, 43.25, 0.0)]
+# # TM.localize_to_road(cars[0].state, car_id = 0)
 
+# TM.localize_to_road(cars[0].state, car_id = 0)
+
+# s,d, in_edge, closest_index, closest_point = TM.localize_to_road([37.901,43.784, 0.,0.,0.], car_id = 0)
+# print("In edge: ", in_edge)
+
+# [(37.6, 43.25, 0.0), (38.1, 43.25, 0.0), (38.6, 43.25, 0.0), (39.1, 43.25, 0.0), (39.6, 43.25, 0.0),
+import time
+stime = time.time()
 sim_ctr = 0
-T_history = []
 for n_loop in range(N_LOOP):
-    print(" *********************************** {} *********************************".format(n_loop))
     sim_ctr +=1 
    
     TM.traffic_state_update(car_states)
@@ -103,42 +114,44 @@ for n_loop in range(N_LOOP):
                     y - car_width / 2 * np.cos(theta) - car_length / 2 * np.sin(theta)))
         # car.set_xy((x, y))
         car_patches[i].angle = np.degrees(theta)
+    # plt.draw()
+        # ahead_point = TM.StateBuffer[i]["ahead_point"]
+        # plt.scatter(ahead_point[0], ahead_point[1], marker='x', color='red', s=100)
+        # print("Robot {} in edge: {}, with path {} ".format( i, TM.StateBuffer[i]["in_edge"], TM.PathBuffer[i] ))
 
-    plt.clf()
+    # plt.clf()
     # plt.xlim(0, 60)
     # plt.ylim(0, 50)
-    plt.xlim(-1, 6.5)
-    plt.ylim(-1, 5.5)
-    plot_topo(node_list,edge_list, ax, if_arrow=False)
-    trajbuffer = TM.get_traj_buffer()
-    plot_cars(trajbuffer, car_length, car_width)
-    plt.pause(1)
-    # plt.show()
+    # plot_topo(node_list,edge_list, ax, if_arrow=False)
+    # trajbuffer = TM.get_traj_buffer()
+    # # for traj in trajbuffer:
+    # #     print("********************* Traj: *****************")
+    # #     print(traj)
+    # #     print("*******************************")
+    # #     plot_traj(traj)
+    # plot_cars(trajbuffer, car_length, car_width)
+    
+         
 
+
+    # plt.pause(0.01)
+
+    # # car_states = []
+    # for i in range(N_CAR):
+    #     cmd = cars[i].move_base(TM.CommandBuffer[i])
+    #     print("cmd is: ", cmd)
+    #     print("car states before update: ", car_states[i])
+    #     cars[i].state_update(cmd)
+    #     # car_states.append(cars[i].state)
+    #     print("car states after update: ", car_states[i])
 
     """ 
     Car state update
     """
-    
     car_states=[]
     Tbuffer = TM.get_traj_buffer()
-    if len(T_history) > 0:
-        for car_id in range(N_CAR):
-            print(" car_id {}, old buffer {} , new {} ".format(car_id, T_history[-1][car_id][1], Tbuffer[car_id][1] ))
-            # assert Tbuffer[car_id][1][:] != T_history[-1][car_id][1].all(), "No new traj planned"
-    T_history.append(Tbuffer)
-    # print("Sbuffer: ", TM.Sbuffer)
     for id in range(N_CAR):
-        print("car ", id, " : ***************************88")    
-        print("state buffer: ", TM.StateBuffer[id])
-    # print("Path buffer: ", TM.PathBuffer)
-    # print(" Tbuffer: ",Tbuffer)
-    # print("waypoints buffer", TM.WptsBuffer)
-    # assert 1==2, "check buffer."
-    for id in range(N_CAR):
-        print(" Tbuffer[id]: ", Tbuffer[id][1])
         car_states.append(Tbuffer[id][1])
 
-    # for i in range(N_CAR):
-        # print("Traj buffer: ",Tbuffer[i])
-
+etime = time.time()
+print(" running {} loops, cost time {}, average time cost {} ".format(N_LOOP, etime-stime, (etime-stime)/N_LOOP))

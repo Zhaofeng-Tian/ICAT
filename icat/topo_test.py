@@ -1,12 +1,26 @@
+#!/usr/bin/env python3
+# encoding: utf-8
+
 from topo import *
-from nav_gym.map.util import load_img
+# from nav_gym.map.util import load_img
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Circle, Arrow
 from quintic import QuinticPolynomial, quintic_planner, quintic_plan
+import os
+import rospkg
 
-def view_topo(if_arrow = False):
-    node_list = get_node_list()
+rospack = rospkg.RosPack()
+package_path = rospack.get_path('icat_nav')
+
+def load_img(name = 'icat.png'):
+    img_path = package_path + '/map/' + name
+    img = plt.imread(img_path)
+    return img
+
+
+def view_topo(node_lsit, if_arrow = False):
+    
     edge_list = get_edge_list(node_list=node_list)
     for edge in edge_list:
         print("----------------------")
@@ -191,9 +205,13 @@ def localize_to_road():
 
 # view_trajectory()    
 # test_graph()
-view_topo(if_arrow=False)
+# node_list = get_node_list()
+# node_list = get_tuned_node_list()
+node_list = get_node_list()
+view_topo(node_list , if_arrow=False)
 # test_save_edges()
 # test_load_edges()
 # localize_to_road()
+
 
 
